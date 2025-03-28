@@ -54,12 +54,21 @@ class InstagramMonitor(commands.Cog):
             logging.info(f"Checking RSS feed: {self.rss_url}")
             feed = feedparser.parse(self.rss_url)
             
+            # Log feed details
+            logging.info(f"Feed title: {feed.feed.get('title', 'No title')}")
+            logging.info(f"Feed description: {feed.feed.get('description', 'No description')}")
+            logging.info(f"Feed link: {feed.feed.get('link', 'No link')}")
+            
             if not feed.entries:
                 logging.warning("No entries found in RSS feed")
+                # Log the raw feed content for debugging
+                logging.warning(f"Feed content: {feed}")
                 return
                 
             latest_entry = feed.entries[0]
             logging.info(f"Latest entry ID: {latest_entry.id}")
+            logging.info(f"Latest entry title: {latest_entry.get('title', 'No title')}")
+            logging.info(f"Latest entry link: {latest_entry.get('link', 'No link')}")
             logging.info(f"Last known entry ID: {self.last_entry_id}")
             
             if self.last_entry_id is None:
