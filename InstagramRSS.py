@@ -44,6 +44,46 @@ class InstagramMonitor(commands.Cog):
         self.discord_channel_id = int(os.getenv('DISCORD_CHANNEL_ID'))
         self.check_feed.start()
         logging.info("Instagram Monitor initialized")
+        # Send latest post on startup
+        self.send_latest_post()
+
+    async def send_latest_post(self):
+        """Send the latest post to Discord for testing"""
+        try:
+            logging.info("Fetching latest post for initial display")
+            feed = feedparser.parse(self.rss_url)
+            
+            if not feed.entries:
+                logging.warning("No entries found in RSS feed for initial display")
+                return
+                
+            latest_entry = feed.entries[0]
+            channel = self.bot.get_channel(self.discord_channel_id)
+            
+            if not channel:
+                logging.error(f"Could not find channel with ID: {self.discord_channel_id}")
+                return
+            
+            # Create embed for the latest post
+            embed = discord.Embed(
+                title="Latest Instagram Post",
+                description=latest_entry.description,
+                url=latest_entry.link,
+                timestamp=datetime.now(),
+                color=discord.Color.blue()  # Different color to indicate it's the initial post
+            )
+            
+            # Add image if available
+            if 'media_content' in latest_entry:
+                embed.set_image(url=latest_entry.media_content[0]['url'])
+                logging.info(f"Added image to embed: {latest_entry.media_content[0]['url']}")
+            
+            await channel.send("🔄 Initial post display for testing:", embed=embed)
+            logging.info(f"Successfully sent initial post to channel {self.discord_channel_id}")
+            
+        except Exception as e:
+            error_msg = f"Error sending initial post: {str(e)}\nTraceback: {traceback.format_exc()}"
+            logging.error(error_msg)
 
     def cog_unload(self):
         self.check_feed.cancel()
@@ -54,6 +94,15 @@ class InstagramMonitor(commands.Cog):
             logging.info(f"Checking RSS feed: {self.rss_url}")
             feed = feedparser.parse(self.rss_url)
             
+            # Check if the feed is valid
+            if feed.bozo:  # Feed parsing error
+                error_msg = f"Invalid RSS feed: {feed.bozo_exception}"
+                logging.error(error_msg)
+                channel = self.bot.get_channel(self.discord_channel_id)
+                if channel:
+                    await channel.send(f"⚠️ RSS Feed Error: The feed URL appears to be invalid or expired. Please check the URL: {self.rss_url}")
+                return
+            
             # Log feed details
             logging.info(f"Feed title: {feed.feed.get('title', 'No title')}")
             logging.info(f"Feed description: {feed.feed.get('description', 'No description')}")
@@ -61,8 +110,6 @@ class InstagramMonitor(commands.Cog):
             
             if not feed.entries:
                 logging.warning("No entries found in RSS feed")
-                # Log the raw feed content for debugging
-                logging.warning(f"Feed content: {feed}")
                 return
                 
             latest_entry = feed.entries[0]
