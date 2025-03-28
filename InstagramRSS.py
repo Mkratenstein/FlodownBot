@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import logging
 from datetime import datetime
 import traceback
+import re
 
 # Set up logging
 logging.basicConfig(
@@ -65,20 +66,26 @@ class InstagramMonitor(commands.Cog):
             # Clean up the description by removing HTML tags and formatting
             description = latest_entry.description
             if '<div>' in description:
-                # Extract text content from div tags and clean up
+                # First, extract the text content from div tags
                 description = description.replace('<div>', '').replace('</div>', '\n')
-                description = description.replace('<img', '')  # Remove img tags
-                description = description.replace('style="width: 100%;"', '')  # Remove style attributes
-                description = description.replace('src="', '')  # Remove src attributes
-                description = description.replace('" />', '')  # Remove closing img tags
+                
+                # Remove all HTML tags and their attributes
+                description = re.sub(r'<[^>]+>', '', description)
+                
                 # Remove any URLs that are not Instagram post links
-                description = '\n'.join(line for line in description.split('\n') if not line.startswith('http') or 'instagram.com/p/' in line)
-                # Remove duplicate text by keeping only unique lines
                 lines = description.split('\n')
-                unique_lines = []
+                cleaned_lines = []
                 for line in lines:
-                    if line.strip() and line not in unique_lines:
+                    line = line.strip()
+                    if line and (not line.startswith('http') or 'instagram.com/p/' in line):
+                        cleaned_lines.append(line)
+                
+                # Remove duplicate text by keeping only unique lines
+                unique_lines = []
+                for line in cleaned_lines:
+                    if line and line not in unique_lines:
                         unique_lines.append(line)
+                
                 description = '\n'.join(unique_lines)
                 description = description.strip()  # Remove extra whitespace
             
@@ -153,20 +160,26 @@ class InstagramMonitor(commands.Cog):
                 # Clean up the description by removing HTML tags and formatting
                 description = latest_entry.description
                 if '<div>' in description:
-                    # Extract text content from div tags and clean up
+                    # First, extract the text content from div tags
                     description = description.replace('<div>', '').replace('</div>', '\n')
-                    description = description.replace('<img', '')  # Remove img tags
-                    description = description.replace('style="width: 100%;"', '')  # Remove style attributes
-                    description = description.replace('src="', '')  # Remove src attributes
-                    description = description.replace('" />', '')  # Remove closing img tags
+                    
+                    # Remove all HTML tags and their attributes
+                    description = re.sub(r'<[^>]+>', '', description)
+                    
                     # Remove any URLs that are not Instagram post links
-                    description = '\n'.join(line for line in description.split('\n') if not line.startswith('http') or 'instagram.com/p/' in line)
-                    # Remove duplicate text by keeping only unique lines
                     lines = description.split('\n')
-                    unique_lines = []
+                    cleaned_lines = []
                     for line in lines:
-                        if line.strip() and line not in unique_lines:
+                        line = line.strip()
+                        if line and (not line.startswith('http') or 'instagram.com/p/' in line):
+                            cleaned_lines.append(line)
+                    
+                    # Remove duplicate text by keeping only unique lines
+                    unique_lines = []
+                    for line in cleaned_lines:
+                        if line and line not in unique_lines:
                             unique_lines.append(line)
+                    
                     description = '\n'.join(unique_lines)
                     description = description.strip()  # Remove extra whitespace
                 
