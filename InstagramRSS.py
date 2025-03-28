@@ -91,7 +91,7 @@ async def on_ready():
     except Exception as e:
         logging.error(f"Failed to sync commands: {str(e)}\nTraceback: {traceback.format_exc()}")
 
-@bot.tree.command(name="StatusFlodown", description="Check the bot's status and last Instagram check")
+@bot.tree.command(name="statusflodown", description="Check the bot's status and last Instagram check")
 async def status(interaction: discord.Interaction):
     """Check the bot's status"""
     try:
@@ -111,9 +111,9 @@ async def status(interaction: discord.Interaction):
         embed.add_field(name="Last Post ID", value=instagram_cog.last_entry_id if instagram_cog else "Not initialized")
         
         await interaction.response.send_message(embed=embed)
-        logging.info(f"StatusFlodown command used by {interaction.user.name}")
+        logging.info(f"statusflodown command used by {interaction.user.name}")
     except Exception as e:
-        error_msg = f"Error in StatusFlodown command: {str(e)}\nTraceback: {traceback.format_exc()}"
+        error_msg = f"Error in statusflodown command: {str(e)}\nTraceback: {traceback.format_exc()}"
         logging.error(error_msg)
         await interaction.response.send_message("❌ An error occurred while checking the status.", ephemeral=True)
 
