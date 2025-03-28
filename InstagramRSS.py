@@ -44,8 +44,6 @@ class InstagramMonitor(commands.Cog):
         self.discord_channel_id = int(os.getenv('DISCORD_CHANNEL_ID'))
         self.check_feed.start()
         logging.info("Instagram Monitor initialized")
-        # Send latest post on startup
-        self.send_latest_post()
 
     async def send_latest_post(self):
         """Send the latest post to Discord for testing"""
@@ -168,7 +166,12 @@ class InstagramMonitor(commands.Cog):
 @bot.event
 async def on_ready():
     logging.info(f'Bot is ready: {bot.user.name}')
-    await bot.add_cog(InstagramMonitor(bot))
+    instagram_monitor = InstagramMonitor(bot)
+    await bot.add_cog(instagram_monitor)
+    
+    # Send initial post after cog is added
+    await instagram_monitor.send_latest_post()
+    
     try:
         # Sync commands globally
         synced = await bot.tree.sync()
