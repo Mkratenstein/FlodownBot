@@ -62,11 +62,16 @@ class InstagramMonitor(commands.Cog):
                 logging.error(f"Could not find channel with ID: {self.discord_channel_id}")
                 return
             
-            # Clean up the description by removing HTML tags
+            # Clean up the description by removing HTML tags and formatting
             description = latest_entry.description
             if '<div>' in description:
-                # Extract text content from div tags
-                description = description.replace('<div>', '').replace('</div>', '\n').strip()
+                # Extract text content from div tags and clean up
+                description = description.replace('<div>', '').replace('</div>', '\n')
+                description = description.replace('<img', '')  # Remove img tags
+                description = description.replace('style="width: 100%;"', '')  # Remove style attributes
+                description = description.replace('src="', '')  # Remove src attributes
+                description = description.replace('" />', '')  # Remove closing img tags
+                description = description.strip()  # Remove extra whitespace
             
             # Create embed for the latest post
             embed = discord.Embed(
@@ -137,11 +142,16 @@ class InstagramMonitor(commands.Cog):
                     logging.error(f"Could not find channel with ID: {self.discord_channel_id}")
                     return
                 
-                # Clean up the description by removing HTML tags
+                # Clean up the description by removing HTML tags and formatting
                 description = latest_entry.description
                 if '<div>' in description:
-                    # Extract text content from div tags
-                    description = description.replace('<div>', '').replace('</div>', '\n').strip()
+                    # Extract text content from div tags and clean up
+                    description = description.replace('<div>', '').replace('</div>', '\n')
+                    description = description.replace('<img', '')  # Remove img tags
+                    description = description.replace('style="width: 100%;"', '')  # Remove style attributes
+                    description = description.replace('src="', '')  # Remove src attributes
+                    description = description.replace('" />', '')  # Remove closing img tags
+                    description = description.strip()  # Remove extra whitespace
                 
                 # Create embed for the new post
                 embed = discord.Embed(
