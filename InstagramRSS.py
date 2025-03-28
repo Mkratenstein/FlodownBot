@@ -62,13 +62,19 @@ class InstagramMonitor(commands.Cog):
                 logging.error(f"Could not find channel with ID: {self.discord_channel_id}")
                 return
             
+            # Clean up the description by removing HTML tags
+            description = latest_entry.description
+            if '<div>' in description:
+                # Extract text content from div tags
+                description = description.replace('<div>', '').replace('</div>', '\n').strip()
+            
             # Create embed for the latest post
             embed = discord.Embed(
-                title="Latest Instagram Post",
-                description=latest_entry.description,
+                title=latest_entry.title,  # Use the original title from the feed
+                description=description,
                 url=latest_entry.link,
                 timestamp=datetime.now(),
-                color=discord.Color.blue()  # Different color to indicate it's the initial post
+                color=discord.Color.blue()
             )
             
             # Add image if available
@@ -76,7 +82,10 @@ class InstagramMonitor(commands.Cog):
                 embed.set_image(url=latest_entry.media_content[0]['url'])
                 logging.info(f"Added image to embed: {latest_entry.media_content[0]['url']}")
             
-            await channel.send("🔄 Initial post display for testing:", embed=embed)
+            # Add footer with source
+            embed.set_footer(text="Instagram", icon_url="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Instagram_logo.svg/2560px-Instagram_logo.svg.png")
+            
+            await channel.send("Initial post display for testing:", embed=embed)
             logging.info(f"Successfully sent initial post to channel {self.discord_channel_id}")
             
         except Exception as e:
@@ -98,7 +107,7 @@ class InstagramMonitor(commands.Cog):
                 logging.error(error_msg)
                 channel = self.bot.get_channel(self.discord_channel_id)
                 if channel:
-                    await channel.send(f"⚠️ RSS Feed Error: The feed URL appears to be invalid or expired. Please check the URL: {self.rss_url}")
+                    await channel.send(f"RSS Feed Error: The feed URL appears to be invalid or expired. Please check the URL: {self.rss_url}")
                 return
             
             # Log feed details
@@ -128,18 +137,28 @@ class InstagramMonitor(commands.Cog):
                     logging.error(f"Could not find channel with ID: {self.discord_channel_id}")
                     return
                 
+                # Clean up the description by removing HTML tags
+                description = latest_entry.description
+                if '<div>' in description:
+                    # Extract text content from div tags
+                    description = description.replace('<div>', '').replace('</div>', '\n').strip()
+                
                 # Create embed for the new post
                 embed = discord.Embed(
-                    title="New Instagram Post",
-                    description=latest_entry.description,
+                    title=latest_entry.title,  # Use the original title from the feed
+                    description=description,
                     url=latest_entry.link,
-                    timestamp=datetime.now()
+                    timestamp=datetime.now(),
+                    color=discord.Color.green()
                 )
                 
                 # Add image if available
                 if 'media_content' in latest_entry:
                     embed.set_image(url=latest_entry.media_content[0]['url'])
                     logging.info(f"Added image to embed: {latest_entry.media_content[0]['url']}")
+                
+                # Add footer with source
+                embed.set_footer(text="Instagram", icon_url="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Instagram_logo.svg/2560px-Instagram_logo.svg.png")
                 
                 await channel.send(embed=embed)
                 logging.info(f"Successfully sent new post to channel {self.discord_channel_id}")
@@ -208,6 +227,41 @@ async def status(interaction: discord.Interaction):
         error_msg = f"Error in statusflodown command: {str(e)}\nTraceback: {traceback.format_exc()}"
         logging.error(error_msg)
         await interaction.response.send_message("❌ An error occurred while checking the status.", ephemeral=True)
+
+@bot.tree.command(name="inviteflodown", description="Get the bot's invite link with proper permissions")
+async def invite(interaction: discord.Interaction):
+    """Get the bot's invite link"""
+    try:
+        # Calculate permissions integer
+        permissions = discord.Permissions(
+            send_messages=True,
+            embed_links=True,
+            view_channel=True,
+            read_message_history=True
+        )
+        
+        # Generate invite link
+        invite_url = discord.utils.oauth_url(
+            bot.user.id,
+            permissions=permissions,
+            scopes=('bot', 'applications.commands')
+        )
+        
+        embed = discord.Embed(
+            title="Bot Invite Link",
+            description="Click the link below to invite the bot with proper permissions:",
+            color=discord.Color.blue(),
+            timestamp=datetime.now()
+        )
+        embed.add_field(name="Invite Link", value=f"[Click here to invite]({invite_url})")
+        embed.add_field(name="Required Permissions", value="• Send Messages\n• Embed Links\n• View Channel\n• Read Message History")
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        logging.info(f"Invite link generated for {interaction.user.name}")
+    except Exception as e:
+        error_msg = f"Error generating invite link: {str(e)}\nTraceback: {traceback.format_exc()}"
+        logging.error(error_msg)
+        await interaction.response.send_message("❌ An error occurred while generating the invite link.", ephemeral=True)
 
 # Run the bot
 bot.run(os.getenv('DISCORD_TOKEN'))
