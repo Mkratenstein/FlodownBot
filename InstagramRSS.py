@@ -102,10 +102,10 @@ class InstagramMonitor(commands.Cog):
                 embed.set_image(url=latest_entry.media_content[0]['url'])
                 logging.info(f"Added image to embed: {latest_entry.media_content[0]['url']}")
             
-            # Add footer with source
-            embed.set_footer(text="Instagram", icon_url="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Instagram_logo.svg/2560px-Instagram_logo.svg.png")
+            # Add footer with source and link
+            embed.set_footer(text=f"Instagram • {latest_entry.link}", icon_url="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Instagram_logo.svg/2560px-Instagram_logo.svg.png")
             
-            await channel.send("Initial post display for testing:", embed=embed)
+            await channel.send("Hey! Goose the Organization just posted something on Instagram", embed=embed)
             logging.info(f"Successfully sent initial post to channel {self.discord_channel_id}")
             
         except Exception as e:
@@ -196,10 +196,10 @@ class InstagramMonitor(commands.Cog):
                     embed.set_image(url=latest_entry.media_content[0]['url'])
                     logging.info(f"Added image to embed: {latest_entry.media_content[0]['url']}")
                 
-                # Add footer with source
-                embed.set_footer(text="Instagram", icon_url="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Instagram_logo.svg/2560px-Instagram_logo.svg.png")
+                # Add footer with source and link
+                embed.set_footer(text=f"Instagram • {latest_entry.link}", icon_url="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Instagram_logo.svg/2560px-Instagram_logo.svg.png")
                 
-                await channel.send(embed=embed)
+                await channel.send("Hey! Goose the Organization just posted something on Instagram", embed=embed)
                 logging.info(f"Successfully sent new post to channel {self.discord_channel_id}")
             else:
                 logging.info("No new posts detected")
