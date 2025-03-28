@@ -21,6 +21,7 @@ load_dotenv()
 
 # Bot setup
 intents = discord.Intents.default()
+intents.message_content = True  # Enable message content intent
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 class InstagramMonitor(commands.Cog):
