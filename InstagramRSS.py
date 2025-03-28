@@ -23,7 +23,7 @@ load_dotenv()
 # Bot setup
 intents = discord.Intents.default()
 intents.message_content = True  # Enable message content intent
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(command_prefix='!', intents=intents, application_id=os.getenv('APPLICATION_ID'))
 
 class InstagramMonitor(commands.Cog):
     def __init__(self, bot):
@@ -86,8 +86,13 @@ async def on_ready():
     logging.info(f'Bot is ready: {bot.user.name}')
     await bot.add_cog(InstagramMonitor(bot))
     try:
+        # Sync commands globally
         synced = await bot.tree.sync()
         logging.info(f"Synced {len(synced)} command(s)")
+        
+        # Log all registered commands
+        for command in bot.tree.get_commands():
+            logging.info(f"Registered command: {command.name}")
     except Exception as e:
         logging.error(f"Failed to sync commands: {str(e)}\nTraceback: {traceback.format_exc()}")
 
