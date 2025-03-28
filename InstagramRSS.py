@@ -71,6 +71,8 @@ class InstagramMonitor(commands.Cog):
                 description = description.replace('style="width: 100%;"', '')  # Remove style attributes
                 description = description.replace('src="', '')  # Remove src attributes
                 description = description.replace('" />', '')  # Remove closing img tags
+                # Remove any URLs that are not Instagram post links
+                description = '\n'.join(line for line in description.split('\n') if not line.startswith('http') or 'instagram.com/p/' in line)
                 description = description.strip()  # Remove extra whitespace
             
             # Create embed for the latest post
@@ -151,6 +153,8 @@ class InstagramMonitor(commands.Cog):
                     description = description.replace('style="width: 100%;"', '')  # Remove style attributes
                     description = description.replace('src="', '')  # Remove src attributes
                     description = description.replace('" />', '')  # Remove closing img tags
+                    # Remove any URLs that are not Instagram post links
+                    description = '\n'.join(line for line in description.split('\n') if not line.startswith('http') or 'instagram.com/p/' in line)
                     description = description.strip()  # Remove extra whitespace
                 
                 # Create embed for the new post
