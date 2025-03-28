@@ -73,11 +73,17 @@ class InstagramMonitor(commands.Cog):
                 description = description.replace('" />', '')  # Remove closing img tags
                 # Remove any URLs that are not Instagram post links
                 description = '\n'.join(line for line in description.split('\n') if not line.startswith('http') or 'instagram.com/p/' in line)
+                # Remove duplicate text by keeping only unique lines
+                lines = description.split('\n')
+                unique_lines = []
+                for line in lines:
+                    if line.strip() and line not in unique_lines:
+                        unique_lines.append(line)
+                description = '\n'.join(unique_lines)
                 description = description.strip()  # Remove extra whitespace
             
             # Create embed for the latest post
             embed = discord.Embed(
-                title=latest_entry.title,  # Use the original title from the feed
                 description=description,
                 url=latest_entry.link,
                 timestamp=datetime.now(),
@@ -155,11 +161,17 @@ class InstagramMonitor(commands.Cog):
                     description = description.replace('" />', '')  # Remove closing img tags
                     # Remove any URLs that are not Instagram post links
                     description = '\n'.join(line for line in description.split('\n') if not line.startswith('http') or 'instagram.com/p/' in line)
+                    # Remove duplicate text by keeping only unique lines
+                    lines = description.split('\n')
+                    unique_lines = []
+                    for line in lines:
+                        if line.strip() and line not in unique_lines:
+                            unique_lines.append(line)
+                    description = '\n'.join(unique_lines)
                     description = description.strip()  # Remove extra whitespace
                 
                 # Create embed for the new post
                 embed = discord.Embed(
-                    title=latest_entry.title,  # Use the original title from the feed
                     description=description,
                     url=latest_entry.link,
                     timestamp=datetime.now(),
