@@ -5,6 +5,7 @@ import os
 from dotenv import load_dotenv
 import logging
 from datetime import datetime
+import traceback
 
 # Set up logging
 logging.basicConfig(
@@ -22,7 +23,7 @@ load_dotenv()
 # Bot setup
 intents = discord.Intents.default()
 intents.message_content = True  # Enable message content intent
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(command_prefix='!', intents=intents, command_sync_flags=commands.CommandSyncFlags.default())
 
 class InstagramMonitor(commands.Cog):
     def __init__(self, bot):
@@ -66,7 +67,15 @@ class InstagramMonitor(commands.Cog):
                     logging.info(f"New post detected and sent to channel {self.discord_channel_id}")
                     
         except Exception as e:
-            logging.error(f"Error checking feed: {e}")
+            error_msg = f"Error checking feed: {str(e)}\nTraceback: {traceback.format_exc()}"
+            logging.error(error_msg)
+            # Try to notify in Discord if possible
+            try:
+                channel = self.bot.get_channel(self.discord_channel_id)
+                if channel:
+                    await channel.send(f"⚠️ Error checking Instagram feed: {str(e)}")
+            except:
+                logging.error("Failed to send error notification to Discord channel")
 
     @check_feed.before_loop
     async def before_check_feed(self):
@@ -76,17 +85,37 @@ class InstagramMonitor(commands.Cog):
 async def on_ready():
     logging.info(f'Bot is ready: {bot.user.name}')
     await bot.add_cog(InstagramMonitor(bot))
+    try:
+        synced = await bot.tree.sync()
+        logging.info(f"Synced {len(synced)} command(s)")
+    except Exception as e:
+        logging.error(f"Failed to sync commands: {str(e)}\nTraceback: {traceback.format_exc()}")
 
-@bot.command(name='status')
-async def status(ctx):
+@bot.tree.command(name="StatusFlodown", description="Check the bot's status and last Instagram check")
+async def status(interaction: discord.Interaction):
     """Check the bot's status"""
-    embed = discord.Embed(
-        title="Bot Status",
-        description="Instagram Monitor Bot is running",
-        color=discord.Color.green()
-    )
-    embed.add_field(name="Last Check", value=datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    await ctx.send(embed=embed)
+    try:
+        # Get the InstagramMonitor cog
+        instagram_cog = bot.get_cog('InstagramMonitor')
+        last_check = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        embed = discord.Embed(
+            title="Bot Status",
+            description="Instagram Monitor Bot is running",
+            color=discord.Color.green(),
+            timestamp=datetime.now()
+        )
+        embed.add_field(name="Last Check", value=last_check)
+        embed.add_field(name="RSS URL", value=instagram_cog.rss_url if instagram_cog else "Not initialized")
+        embed.add_field(name="Channel ID", value=instagram_cog.discord_channel_id if instagram_cog else "Not initialized")
+        embed.add_field(name="Last Post ID", value=instagram_cog.last_entry_id if instagram_cog else "Not initialized")
+        
+        await interaction.response.send_message(embed=embed)
+        logging.info(f"StatusFlodown command used by {interaction.user.name}")
+    except Exception as e:
+        error_msg = f"Error in StatusFlodown command: {str(e)}\nTraceback: {traceback.format_exc()}"
+        logging.error(error_msg)
+        await interaction.response.send_message("❌ An error occurred while checking the status.", ephemeral=True)
 
 # Run the bot
 bot.run(os.getenv('DISCORD_TOKEN'))
