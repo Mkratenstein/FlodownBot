@@ -63,8 +63,24 @@ A Discord bot that monitors both Instagram and BlueSky feeds and posts updates t
 
 3. **Platform Deployment**
    - Make sure to set all required environment variables in your deployment platform
-   - The bot requires Python 3.11 or higher
+   - The bot requires Python 3.8 or higher
    - Ensure the deployment platform has enough memory (recommended: 512MB+)
+   - For Heroku deployment:
+     - Add Python buildpack
+     - Set environment variables in the platform settings
+     - The Procfile will automatically use the correct Python version
+
+4. **Environment Setup**
+   - Create a virtual environment (recommended):
+     ```bash
+     python -m venv venv
+     source venv/bin/activate  # On Windows: venv\Scripts\activate
+     pip install -r requirements.txt
+     ```
+   - Or use system Python:
+     ```bash
+     pip install -r requirements.txt
+     ```
 
 ## Commands
 - `/testinstagram`: Test the Instagram monitor by fetching the latest post
@@ -116,6 +132,7 @@ A Discord bot that monitors both Instagram and BlueSky feeds and posts updates t
    - "Invalid RSS feed": The RSS feed URL is invalid or expired
    - "Failed to initialize BlueSky monitor": Authentication or connection issues
    - "No entries found in RSS feed": The feed is empty or inaccessible
+   - "Python version not found": Make sure Python is installed and in your PATH
 
 ## Notes
 - The bot checks for new posts every 5 minutes
