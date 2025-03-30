@@ -89,12 +89,18 @@ class BlueSkyMonitor(commands.Cog):
         self.bsky_login_email = os.getenv('BLUESKY_LOGIN_EMAIL')
         self.bsky_login_password = os.getenv('BLUESKY_LOGIN_PASSWORD')
         self.bsky_client = Client()
+        self.initialized = False
         # Create a session with the API
         try:
             self.bsky_client.login(self.bsky_login_email, self.bsky_login_password)
             logging.info("Successfully logged into BlueSky")
+            self.initialized = True
         except Exception as e:
             logging.error(f"Failed to login to BlueSky: {str(e)}")
+            # Notify Discord about the failure
+            channel = self.bot.get_channel(self.discord_channel_id)
+            if channel:
+                asyncio.create_task(channel.send("⚠️ Failed to initialize BlueSky monitor. Instagram monitoring will be stopped."))
         self.check_feed.start()
         logging.info("BlueSky Monitor initialized")
         logging.info(f"Monitoring BlueSky handle: {self.bsky_handle}")
@@ -102,10 +108,18 @@ class BlueSkyMonitor(commands.Cog):
     async def send_latest_post(self):
         """Send the latest post to Discord for testing"""
         try:
+            if not self.initialized:
+                logging.error("BlueSky monitor not properly initialized")
+                return
+
             logging.info("Fetching latest post for initial display")
             # Ensure we have a valid session
             if not self.bsky_client._session:
-                self.bsky_client.login(self.bsky_login_email, self.bsky_login_password)
+                try:
+                    self.bsky_client.login(self.bsky_login_email, self.bsky_login_password)
+                except Exception as e:
+                    logging.error(f"Failed to re-login to BlueSky: {str(e)}")
+                    return
             
             response = self.bsky_client.app.bsky.feed.get_author_feed({'actor': self.bsky_handle})
             
@@ -158,10 +172,18 @@ class BlueSkyMonitor(commands.Cog):
     @tasks.loop(minutes=5)
     async def check_feed(self):
         try:
+            if not self.initialized:
+                logging.error("BlueSky monitor not properly initialized")
+                return
+
             logging.info(f"Checking BlueSky feed for: {self.bsky_handle}")
             # Ensure we have a valid session
             if not self.bsky_client._session:
-                self.bsky_client.login(self.bsky_login_email, self.bsky_login_password)
+                try:
+                    self.bsky_client.login(self.bsky_login_email, self.bsky_login_password)
+                except Exception as e:
+                    logging.error(f"Failed to re-login to BlueSky: {str(e)}")
+                    return
             
             response = self.bsky_client.app.bsky.feed.get_author_feed({'actor': self.bsky_handle})
             
@@ -226,11 +248,26 @@ class BlueSkyMonitor(commands.Cog):
 @bot.event
 async def on_ready():
     logging.info(f'Bot is ready: {bot.user.name}')
-    bluesky_monitor = BlueSkyMonitor(bot)
-    await bot.add_cog(bluesky_monitor)
+    
+    # First try to initialize BlueSky monitor
+    try:
+        bluesky_monitor = BlueSkyMonitor(bot)
+        await bot.add_cog(bluesky_monitor)
+        if not bluesky_monitor.initialized:
+            logging.error("BlueSky monitor failed to initialize properly")
+            return
+        logging.info("BlueSky Monitor initialized successfully")
+    except Exception as e:
+        logging.error(f"Failed to initialize BlueSky Monitor: {str(e)}")
+        # Don't initialize Instagram monitor if BlueSky fails
+        return
+    
+    # Only initialize Instagram monitor if BlueSky monitor is running
+    instagram_monitor = InstagramMonitor(bot)
+    await bot.add_cog(instagram_monitor)
     
     # Send initial post after cog is added
-    await bluesky_monitor.send_latest_post()
+    await instagram_monitor.send_latest_post()
     
     try:
         # Add delay before syncing commands
@@ -255,14 +292,15 @@ async def status(interaction: discord.Interaction):
         
         embed = discord.Embed(
             title="Bot Status",
-            description="BlueSky Monitor Bot is running",
-            color=discord.Color.green(),
+            description="BlueSky Monitor Bot is running" if bluesky_cog else "BlueSky Monitor Bot is not running",
+            color=discord.Color.green() if bluesky_cog else discord.Color.red(),
             timestamp=datetime.now()
         )
         embed.add_field(name="Last Check", value=last_check)
         embed.add_field(name="BlueSky Handle", value=bluesky_cog.bsky_handle if bluesky_cog else "Not initialized")
         embed.add_field(name="Channel ID", value=bluesky_cog.discord_channel_id if bluesky_cog else "Not initialized")
         embed.add_field(name="Last Post URI", value=bluesky_cog.last_post_uri if bluesky_cog else "Not initialized")
+        embed.add_field(name="Initialized", value="Yes" if bluesky_cog and bluesky_cog.initialized else "No")
         
         await interaction.response.send_message(embed=embed)
         logging.info(f"statusbluesky command used by {interaction.user.name}")
