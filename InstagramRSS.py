@@ -69,7 +69,7 @@ class InstagramMonitor(commands.Cog):
         self.check_feed.start()
         logging.info("Instagram Monitor initialized")
 
-    @commands.slash_command(name="testinstagram", description="Test the Instagram monitor by fetching the latest post")
+    @app_commands.command(name="testinstagram", description="Test the Instagram monitor by fetching the latest post")
     @has_allowed_role()
     async def test_instagram(self, interaction: discord.Interaction):
         """Test the Instagram monitor by fetching the latest post"""
