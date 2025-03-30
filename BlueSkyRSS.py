@@ -106,15 +106,23 @@ class BlueSkyMonitor(commands.Cog):
                 
                 if response.status_code == 200:
                     data = response.json()
+                    logging.info(f"BlueSky API Response: {data}")
+                    
+                    # Verify we have the required data
+                    if not data.get('accessJwt') or not data.get('did'):
+                        raise Exception(f"Missing required data in response: {data}")
+                    
                     # Set the session data directly
                     self.bsky_client._session.headers.update({
-                        'Authorization': f'Bearer {data.get("accessJwt")}'
+                        'Authorization': f'Bearer {data["accessJwt"]}'
                     })
-                    self.bsky_client._session.me = data.get('did')
+                    self.bsky_client._session.me = data['did']
                     logging.info("Successfully logged into BlueSky")
                     self.initialized = True
                 else:
-                    raise Exception(f"Failed to create session: {response.status_code} {response.text}")
+                    error_msg = f"Failed to create session: {response.status_code} {response.text}"
+                    logging.error(error_msg)
+                    raise Exception(error_msg)
             except Exception as e:
                 logging.error(f"Failed to login to BlueSky: {str(e)}")
                 # Notify Discord about the failure
