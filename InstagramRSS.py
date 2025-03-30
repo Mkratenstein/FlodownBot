@@ -358,6 +358,17 @@ async def on_ready():
         # Clear existing commands
         bot.tree.clear_commands(guild=None)
         
+        # Register all commands from cogs
+        for cog in bot.cogs.values():
+            for command in cog.get_commands():
+                logging.info(f"Registering command from cog {cog.__class__.__name__}: {command.name}")
+                bot.tree.add_command(command)
+        
+        # Register standalone commands
+        for command in bot.tree.get_commands():
+            logging.info(f"Registering standalone command: {command.name}")
+            bot.tree.add_command(command)
+        
         # Sync commands globally
         synced = await bot.tree.sync()
         logging.info(f"Synced {len(synced)} command(s)")

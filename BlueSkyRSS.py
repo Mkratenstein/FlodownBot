@@ -238,5 +238,14 @@ class BlueSkyMonitor(commands.Cog):
         await self.bot.wait_until_ready()
 
 async def setup(bot):
+    # Add the cog
     await bot.add_cog(BlueSkyMonitor(bot))
-    logging.info("BlueSky Monitor cog added successfully") 
+    logging.info("BlueSky Monitor cog added successfully")
+    
+    # Register the command
+    try:
+        # Add the command to the command tree
+        bot.tree.add_command(BlueSkyMonitor.test_bluesky)
+        logging.info("testbluesky command registered successfully")
+    except Exception as e:
+        logging.error(f"Failed to register testbluesky command: {str(e)}") 
