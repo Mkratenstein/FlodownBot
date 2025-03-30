@@ -88,15 +88,16 @@ class BlueSkyMonitor(commands.Cog):
         self.bsky_handle = os.getenv('BLUESKY_HANDLE')
         self.bsky_login_email = os.getenv('BLUESKY_LOGIN_EMAIL')
         self.bsky_login_password = os.getenv('BLUESKY_LOGIN_PASSWORD')
-        self.bsky_client = Client()
+        self.session = None
         self.initialized = False
+        self.last_post_uri = None
         
         # Try to login to BlueSky
         try:
             logging.info("Attempting to login to BlueSky...")
-            # Create a session using requests first to verify credentials
-            session = requests.Session()
-            response = session.post(
+            # Create a session using requests
+            self.session = requests.Session()
+            response = self.session.post(
                 'https://bsky.social/xrpc/com.atproto.server.createSession',
                 json={
                     'identifier': self.bsky_login_email,
@@ -107,22 +108,14 @@ class BlueSkyMonitor(commands.Cog):
             if response.status_code == 200:
                 data = response.json()
                 if 'accessJwt' in data and 'did' in data:
-                    logging.info("Successfully authenticated with BlueSky")
-                    # Now try to initialize the client
-                    try:
-                        self.bsky_client.login(self.bsky_login_email, self.bsky_login_password)
-                        self.initialized = True
-                        logging.info("BlueSky client initialized successfully")
-                    except Exception as e:
-                        if "validation errors for Response" in str(e):
-                            # If we get validation errors but the session was created, we can still proceed
-                            if hasattr(self.bsky_client, '_session') and self.bsky_client._session:
-                                logging.warning("BlueSky login succeeded despite validation errors")
-                                self.initialized = True
-                            else:
-                                raise e
-                        else:
-                            raise e
+                    # Set up the session headers
+                    self.session.headers.update({
+                        'Authorization': f'Bearer {data["accessJwt"]}'
+                    })
+                    self.initialized = True
+                    logging.info("BlueSky session initialized successfully")
+                    # Start the feed checking task
+                    self.check_feed.start()
                 else:
                     raise Exception("Invalid response from BlueSky API")
             else:
@@ -139,6 +132,91 @@ class BlueSkyMonitor(commands.Cog):
     def cog_unload(self):
         if hasattr(self, 'check_feed'):
             self.check_feed.cancel()
+
+    @tasks.loop(minutes=5)
+    async def check_feed(self):
+        try:
+            if not self.session:
+                logging.error("No active BlueSky session")
+                return
+
+            logging.info(f"Checking BlueSky feed for {self.bsky_handle}")
+            
+            # Get the author's feed
+            response = self.session.get(
+                'https://bsky.social/xrpc/app.bsky.feed.getAuthorFeed',
+                params={'actor': self.bsky_handle}
+            )
+            
+            if response.status_code != 200:
+                logging.error(f"Failed to fetch BlueSky feed: {response.status_code}")
+                return
+                
+            data = response.json()
+            if not data.get('feed'):
+                logging.warning("No posts found in BlueSky feed")
+                return
+                
+            latest_post = data['feed'][0]
+            post_uri = latest_post['post']['uri']
+            
+            # If this is the first post we've seen, just store it and return
+            if self.last_post_uri is None:
+                self.last_post_uri = post_uri
+                logging.info("Initial BlueSky post URI set")
+                return
+                
+            # Check if this is a new post
+            if post_uri != self.last_post_uri:
+                logging.info("New BlueSky post detected")
+                self.last_post_uri = post_uri
+                
+                # Get the post content
+                post_content = latest_post['post']['record'].get('text', '')
+                post_images = latest_post['post']['embed'].get('images', []) if 'embed' in latest_post['post'] else []
+                
+                # Create embed for the post
+                embed = discord.Embed(
+                    description=post_content,
+                    url=f"https://bsky.app/profile/{self.bsky_handle}/post/{post_uri.split('/')[-1]}",
+                    timestamp=datetime.now(),
+                    color=discord.Color.blue()
+                )
+                
+                # Add images if available
+                if post_images:
+                    embed.set_image(url=post_images[0].get('fullsize', ''))
+                    logging.info(f"Added image to embed: {post_images[0].get('fullsize', '')}")
+                
+                # Add footer with source
+                embed.set_footer(text="BlueSky", icon_url="https://bsky.app/static/icon.png")
+                
+                # Send to Discord
+                channel = self.bot.get_channel(self.discord_channel_id)
+                if channel:
+                    await channel.send(f"Hey! Goose the Organization just posted something on [BlueSky](https://bsky.app/profile/{self.bsky_handle})", embed=embed)
+                    logging.info(f"Successfully sent new BlueSky post to channel {self.discord_channel_id}")
+                else:
+                    logging.error(f"Could not find channel with ID: {self.discord_channel_id}")
+            else:
+                logging.info("No new BlueSky posts detected")
+                
+        except Exception as e:
+            error_msg = f"Error checking BlueSky feed: {str(e)}\nTraceback: {traceback.format_exc()}"
+            logging.error(error_msg)
+            # Try to notify in Discord if possible
+            try:
+                channel = self.bot.get_channel(self.discord_channel_id)
+                if channel:
+                    await channel.send(f"⚠️ Error checking BlueSky feed: {str(e)}")
+                else:
+                    logging.error(f"Could not find channel with ID: {self.discord_channel_id}")
+            except Exception as e:
+                logging.error(f"Failed to send error notification to Discord channel: {str(e)}")
+
+    @check_feed.before_loop
+    async def before_check_feed(self):
+        await self.bot.wait_until_ready()
 
 @bot.event
 async def on_ready():
