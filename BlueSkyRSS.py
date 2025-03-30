@@ -19,7 +19,21 @@ logging.basicConfig(
 )
 
 # Load environment variables
-load_dotenv()
+env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Instagram.env')
+logging.info(f"Loading environment variables from: {env_path}")
+load_dotenv(env_path)
+
+# Debug logging for environment variables
+logging.info("Checking environment variables:")
+for var in ['DISCORD_TOKEN', 'DISCORD_CHANNEL_ID', 'BLUESKY_HANDLE', 'BLUESKY_LOGIN_EMAIL', 'BLUESKY_LOGIN_PASSWORD', 'APPLICATION_ID']:
+    value = os.getenv(var)
+    if value:
+        # Mask sensitive values
+        if var in ['DISCORD_TOKEN', 'BLUESKY_LOGIN_PASSWORD']:
+            value = '********'
+        logging.info(f"{var}: {value}")
+    else:
+        logging.error(f"{var}: Not found")
 
 # Verify environment variables
 required_vars = ['DISCORD_TOKEN', 'DISCORD_CHANNEL_ID', 'BLUESKY_HANDLE', 'BLUESKY_LOGIN_EMAIL', 'BLUESKY_LOGIN_PASSWORD', 'APPLICATION_ID']
