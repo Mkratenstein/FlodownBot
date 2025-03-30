@@ -79,6 +79,8 @@ class BlueSkyMonitor(commands.Cog):
                     logging.info("BlueSky session initialized successfully")
                     # Start the feed checking task
                     self.check_feed.start()
+                    # Send initial post
+                    asyncio.create_task(self.send_latest_post())
                 else:
                     raise Exception("Invalid response from BlueSky API")
             else:
@@ -236,6 +238,66 @@ class BlueSkyMonitor(commands.Cog):
     @check_feed.before_loop
     async def before_check_feed(self):
         await self.bot.wait_until_ready()
+
+    async def send_latest_post(self):
+        """Send the latest post to Discord for initial display"""
+        try:
+            if not self.session:
+                logging.error("No active BlueSky session")
+                return
+
+            logging.info("Fetching latest BlueSky post for initial display")
+            
+            # Get the author's feed
+            response = self.session.get(
+                'https://bsky.social/xrpc/app.bsky.feed.getAuthorFeed',
+                params={'actor': self.bsky_handle}
+            )
+            
+            if response.status_code != 200:
+                logging.error(f"Failed to fetch BlueSky feed: {response.status_code}")
+                return
+                
+            data = response.json()
+            if not data.get('feed'):
+                logging.warning("No posts found in BlueSky feed for initial display")
+                return
+                
+            latest_post = data['feed'][0]
+            post_uri = latest_post['post']['uri']
+            self.last_post_uri = post_uri
+            
+            # Get the post content
+            post_content = latest_post['post']['record'].get('text', '')
+            post_images = latest_post['post']['embed'].get('images', []) if 'embed' in latest_post['post'] else []
+            
+            # Create embed for the post
+            embed = discord.Embed(
+                description=post_content,
+                url=f"https://bsky.app/profile/{self.bsky_handle}/post/{post_uri.split('/')[-1]}",
+                timestamp=datetime.now(),
+                color=discord.Color.blue()
+            )
+            
+            # Add images if available
+            if post_images:
+                embed.set_image(url=post_images[0].get('fullsize', ''))
+                logging.info(f"Added image to embed: {post_images[0].get('fullsize', '')}")
+            
+            # Add footer with source
+            embed.set_footer(text="BlueSky", icon_url="https://bsky.app/static/icon.png")
+            
+            # Send to Discord
+            channel = self.bot.get_channel(self.discord_channel_id)
+            if channel:
+                await channel.send(f"Hey! Goose the Organization just posted something on [BlueSky](https://bsky.app/profile/{self.bsky_handle})", embed=embed)
+                logging.info(f"Successfully sent initial BlueSky post to channel {self.discord_channel_id}")
+            else:
+                logging.error(f"Could not find channel with ID: {self.discord_channel_id}")
+                
+        except Exception as e:
+            error_msg = f"Error sending initial BlueSky post: {str(e)}\nTraceback: {traceback.format_exc()}"
+            logging.error(error_msg)
 
 async def setup(bot):
     # Add the cog
