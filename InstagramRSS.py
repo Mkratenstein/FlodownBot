@@ -337,6 +337,9 @@ async def on_ready():
     try:
         bluesky_monitor = BlueSkyMonitor(bot)
         await bot.add_cog(bluesky_monitor)
+        if not bluesky_monitor.initialized:
+            logging.error("BlueSky monitor failed to initialize properly")
+            return
         logging.info("BlueSky Monitor initialized successfully")
     except Exception as e:
         logging.error(f"Failed to initialize BlueSky Monitor: {str(e)}")
@@ -425,4 +428,5 @@ async def invite(interaction: discord.Interaction):
         await interaction.response.send_message("❌ An error occurred while generating the invite link.", ephemeral=True)
 
 # Run the bot
-bot.run(os.getenv('DISCORD_TOKEN'))
+if __name__ == "__main__":
+    bot.run(os.getenv('DISCORD_TOKEN'))

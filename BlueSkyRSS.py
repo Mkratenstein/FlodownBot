@@ -81,11 +81,6 @@ logging.info(f"Channel ID: {os.getenv('DISCORD_CHANNEL_ID')}")
 logging.info(f"BlueSky Handle: {os.getenv('BLUESKY_HANDLE')}")
 logging.info(f"BlueSky Login Email: {os.getenv('BLUESKY_LOGIN_EMAIL')}")
 
-# Bot setup
-intents = discord.Intents.default()
-intents.message_content = True
-bot = commands.Bot(command_prefix='!', intents=intents, application_id=os.getenv('APPLICATION_ID'))
-
 def has_allowed_role():
     """Check if the user has any of the allowed roles"""
     async def predicate(interaction: discord.Interaction) -> bool:
@@ -294,24 +289,4 @@ class BlueSkyMonitor(commands.Cog):
 
     @check_feed.before_loop
     async def before_check_feed(self):
-        await self.bot.wait_until_ready()
-
-@bot.event
-async def on_ready():
-    logging.info(f'Bot is ready: {bot.user.name}')
-    
-    # First try to initialize BlueSky monitor
-    try:
-        bluesky_monitor = BlueSkyMonitor(bot)
-        await bot.add_cog(bluesky_monitor)
-        if not bluesky_monitor.initialized:
-            logging.error("BlueSky monitor failed to initialize properly")
-            return
-        logging.info("BlueSky Monitor initialized successfully")
-    except Exception as e:
-        logging.error(f"Failed to initialize BlueSky Monitor: {str(e)}")
-        # Don't initialize Instagram monitor if BlueSky fails
-        return
-
-# Run the bot
-bot.run(os.getenv('DISCORD_TOKEN')) 
+        await self.bot.wait_until_ready() 
