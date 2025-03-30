@@ -94,16 +94,34 @@ class BlueSkyMonitor(commands.Cog):
         # Try to login to BlueSky
         try:
             logging.info("Attempting to login to BlueSky...")
-            self.bsky_client.login(self.bsky_login_email, self.bsky_login_password)
-            logging.info("Successfully logged into BlueSky")
-            self.initialized = True
-            
-            # Test the session with a simple API call
-            test_response = self.bsky_client.app.bsky.feed.get_author_feed({'actor': self.bsky_handle})
-            if test_response:
-                logging.info("Successfully verified BlueSky session")
-            else:
-                raise Exception("Failed to verify BlueSky session")
+            try:
+                self.bsky_client.login(self.bsky_login_email, self.bsky_login_password)
+                logging.info("Successfully logged into BlueSky")
+                self.initialized = True
+                
+                # Test the session with a simple API call
+                test_response = self.bsky_client.app.bsky.feed.get_author_feed({'actor': self.bsky_handle})
+                if test_response:
+                    logging.info("Successfully verified BlueSky session")
+                else:
+                    raise Exception("Failed to verify BlueSky session")
+            except Exception as e:
+                if "validation errors for Response" in str(e):
+                    # If we get validation errors but the session was created, we can still proceed
+                    if hasattr(self.bsky_client, '_session') and self.bsky_client._session:
+                        logging.warning("BlueSky login succeeded despite validation errors")
+                        self.initialized = True
+                        
+                        # Test the session with a simple API call
+                        test_response = self.bsky_client.app.bsky.feed.get_author_feed({'actor': self.bsky_handle})
+                        if test_response:
+                            logging.info("Successfully verified BlueSky session")
+                        else:
+                            raise Exception("Failed to verify BlueSky session")
+                    else:
+                        raise e
+                else:
+                    raise e
                 
         except Exception as e:
             logging.error(f"Failed to initialize BlueSky client: {str(e)}")
