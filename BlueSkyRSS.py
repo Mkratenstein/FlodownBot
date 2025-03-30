@@ -54,7 +54,7 @@ if not env_loaded:
 
 # Debug logging for environment variables
 logging.info("Checking environment variables:")
-for var in ['DISCORD_TOKEN', 'DISCORD_CHANNEL_ID', 'BLUESKY_HANDLE', 'BLUESKY_LOGIN_EMAIL', 'BLUESKY_LOGIN_PASSWORD', 'APPLICATION_ID']:
+for var in ['DISCORD_TOKEN', 'DISCORD_CHANNEL_ID', 'BLUESKY_HANDLE', 'BLUESKY_LOGIN_EMAIL', 'BLUESKY_LOGIN_PASSWORD', 'APPLICATION_ID', 'ALLOWED_ROLE_IDS']:
     value = os.getenv(var)
     if value:
         # Mask sensitive values
@@ -65,11 +65,15 @@ for var in ['DISCORD_TOKEN', 'DISCORD_CHANNEL_ID', 'BLUESKY_HANDLE', 'BLUESKY_LO
         logging.error(f"{var}: Not found")
 
 # Verify environment variables
-required_vars = ['DISCORD_TOKEN', 'DISCORD_CHANNEL_ID', 'BLUESKY_HANDLE', 'BLUESKY_LOGIN_EMAIL', 'BLUESKY_LOGIN_PASSWORD', 'APPLICATION_ID']
+required_vars = ['DISCORD_TOKEN', 'DISCORD_CHANNEL_ID', 'BLUESKY_HANDLE', 'BLUESKY_LOGIN_EMAIL', 'BLUESKY_LOGIN_PASSWORD', 'APPLICATION_ID', 'ALLOWED_ROLE_IDS']
 missing_vars = [var for var in required_vars if not os.getenv(var)]
 if missing_vars:
     logging.error(f"Missing required environment variables: {', '.join(missing_vars)}")
     raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
+
+# Parse allowed role IDs
+ALLOWED_ROLE_IDS = [int(role_id.strip()) for role_id in os.getenv('ALLOWED_ROLE_IDS').split(',')]
+logging.info(f"Allowed role IDs: {ALLOWED_ROLE_IDS}")
 
 logging.info("Environment variables loaded successfully")
 logging.info(f"Channel ID: {os.getenv('DISCORD_CHANNEL_ID')}")
@@ -80,6 +84,23 @@ logging.info(f"BlueSky Login Email: {os.getenv('BLUESKY_LOGIN_EMAIL')}")
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents, application_id=os.getenv('APPLICATION_ID'))
+
+def has_allowed_role():
+    """Check if the user has any of the allowed roles"""
+    async def predicate(interaction: discord.Interaction) -> bool:
+        if not interaction.user.roles:
+            await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
+            return False
+            
+        user_roles = [role.id for role in interaction.user.roles]
+        has_role = any(role_id in user_roles for role_id in ALLOWED_ROLE_IDS)
+        
+        if not has_role:
+            await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
+            return False
+            
+        return True
+    return commands.check(predicate)
 
 class BlueSkyMonitor(commands.Cog):
     def __init__(self, bot):
@@ -128,6 +149,62 @@ class BlueSkyMonitor(commands.Cog):
             if channel:
                 asyncio.create_task(channel.send("⚠️ Failed to initialize BlueSky monitor. Instagram monitoring will be stopped."))
             return
+
+    @commands.slash_command(name="testbluesky", description="Test the BlueSky monitor by fetching the latest post")
+    @has_allowed_role()
+    async def test_bluesky(self, interaction: discord.Interaction):
+        """Test the BlueSky monitor by fetching the latest post"""
+        try:
+            if not self.session:
+                await interaction.response.send_message("❌ BlueSky monitor is not initialized.", ephemeral=True)
+                return
+
+            await interaction.response.defer(ephemeral=True)
+            
+            # Get the author's feed
+            response = self.session.get(
+                'https://bsky.social/xrpc/app.bsky.feed.getAuthorFeed',
+                params={'actor': self.bsky_handle}
+            )
+            
+            if response.status_code != 200:
+                await interaction.followup.send(f"❌ Failed to fetch BlueSky feed: {response.status_code}", ephemeral=True)
+                return
+                
+            data = response.json()
+            if not data.get('feed'):
+                await interaction.followup.send("❌ No posts found in BlueSky feed", ephemeral=True)
+                return
+                
+            latest_post = data['feed'][0]
+            post_uri = latest_post['post']['uri']
+            
+            # Get the post content
+            post_content = latest_post['post']['record'].get('text', '')
+            post_images = latest_post['post']['embed'].get('images', []) if 'embed' in latest_post['post'] else []
+            
+            # Create embed for the post
+            embed = discord.Embed(
+                description=post_content,
+                url=f"https://bsky.app/profile/{self.bsky_handle}/post/{post_uri.split('/')[-1]}",
+                timestamp=datetime.now(),
+                color=discord.Color.blue()
+            )
+            
+            # Add images if available
+            if post_images:
+                embed.set_image(url=post_images[0].get('fullsize', ''))
+            
+            # Add footer with source
+            embed.set_footer(text="BlueSky", icon_url="https://bsky.app/static/icon.png")
+            
+            await interaction.followup.send("✅ BlueSky monitor is working correctly! Here's the latest post:", embed=embed, ephemeral=True)
+            logging.info(f"testbluesky command used by {interaction.user.name}")
+            
+        except Exception as e:
+            error_msg = f"Error in testbluesky command: {str(e)}\nTraceback: {traceback.format_exc()}"
+            logging.error(error_msg)
+            await interaction.followup.send(f"❌ An error occurred while testing BlueSky monitor: {str(e)}", ephemeral=True)
 
     def cog_unload(self):
         if hasattr(self, 'check_feed'):

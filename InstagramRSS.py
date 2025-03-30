@@ -23,11 +23,15 @@ logging.basicConfig(
 load_dotenv()
 
 # Verify environment variables
-required_vars = ['DISCORD_TOKEN', 'DISCORD_CHANNEL_ID', 'INSTAGRAM_RSS_URL', 'APPLICATION_ID']
+required_vars = ['DISCORD_TOKEN', 'DISCORD_CHANNEL_ID', 'INSTAGRAM_RSS_URL', 'APPLICATION_ID', 'ALLOWED_ROLE_IDS']
 missing_vars = [var for var in required_vars if not os.getenv(var)]
 if missing_vars:
     logging.error(f"Missing required environment variables: {', '.join(missing_vars)}")
     raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
+
+# Parse allowed role IDs
+ALLOWED_ROLE_IDS = [int(role_id.strip()) for role_id in os.getenv('ALLOWED_ROLE_IDS').split(',')]
+logging.info(f"Allowed role IDs: {ALLOWED_ROLE_IDS}")
 
 logging.info("Environment variables loaded successfully")
 logging.info(f"Channel ID: {os.getenv('DISCORD_CHANNEL_ID')}")
@@ -38,6 +42,23 @@ intents = discord.Intents.default()
 intents.message_content = True  # Enable message content intent
 bot = commands.Bot(command_prefix='!', intents=intents, application_id=os.getenv('APPLICATION_ID'))
 
+def has_allowed_role():
+    """Check if the user has any of the allowed roles"""
+    async def predicate(interaction: discord.Interaction) -> bool:
+        if not interaction.user.roles:
+            await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
+            return False
+            
+        user_roles = [role.id for role in interaction.user.roles]
+        has_role = any(role_id in user_roles for role_id in ALLOWED_ROLE_IDS)
+        
+        if not has_role:
+            await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
+            return False
+            
+        return True
+    return commands.check(predicate)
+
 class InstagramMonitor(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -46,6 +67,71 @@ class InstagramMonitor(commands.Cog):
         self.discord_channel_id = int(os.getenv('DISCORD_CHANNEL_ID'))
         self.check_feed.start()
         logging.info("Instagram Monitor initialized")
+
+    @commands.slash_command(name="testinstagram", description="Test the Instagram monitor by fetching the latest post")
+    @has_allowed_role()
+    async def test_instagram(self, interaction: discord.Interaction):
+        """Test the Instagram monitor by fetching the latest post"""
+        try:
+            await interaction.response.defer(ephemeral=True)
+            
+            logging.info("Fetching latest post for testing")
+            feed = feedparser.parse(self.rss_url)
+            
+            if not feed.entries:
+                await interaction.followup.send("❌ No entries found in Instagram RSS feed", ephemeral=True)
+                return
+                
+            latest_entry = feed.entries[0]
+            
+            # Clean up the description by removing HTML tags and formatting
+            description = latest_entry.description
+            if '<div>' in description:
+                # First, extract the text content from div tags
+                description = description.replace('<div>', '').replace('</div>', '\n')
+                
+                # Remove all HTML tags and their attributes
+                description = re.sub(r'<[^>]+>', '', description)
+                
+                # Remove any URLs that are not Instagram post links
+                lines = description.split('\n')
+                cleaned_lines = []
+                for line in lines:
+                    line = line.strip()
+                    if line and (not line.startswith('http') or 'instagram.com/p/' in line):
+                        cleaned_lines.append(line)
+                
+                # Remove duplicate text by keeping only unique lines
+                unique_lines = []
+                for line in cleaned_lines:
+                    if line and line not in unique_lines:
+                        unique_lines.append(line)
+                
+                description = '\n'.join(unique_lines)
+                description = description.strip()  # Remove extra whitespace
+            
+            # Create embed for the latest post
+            embed = discord.Embed(
+                description=description,
+                url=latest_entry.link,
+                timestamp=datetime.now(),
+                color=discord.Color.blue()
+            )
+            
+            # Add image if available
+            if 'media_content' in latest_entry:
+                embed.set_image(url=latest_entry.media_content[0]['url'])
+            
+            # Add footer with source
+            embed.set_footer(text="Instagram", icon_url="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Instagram_logo.svg/2560px-Instagram_logo.svg.png")
+            
+            await interaction.followup.send("✅ Instagram monitor is working correctly! Here's the latest post:", embed=embed, ephemeral=True)
+            logging.info(f"testinstagram command used by {interaction.user.name}")
+            
+        except Exception as e:
+            error_msg = f"Error in testinstagram command: {str(e)}\nTraceback: {traceback.format_exc()}"
+            logging.error(error_msg)
+            await interaction.followup.send(f"❌ An error occurred while testing Instagram monitor: {str(e)}", ephemeral=True)
 
     async def send_latest_post(self):
         """Send the latest post to Discord for testing"""
@@ -275,6 +361,7 @@ async def on_ready():
         logging.error(f"Failed to sync commands: {str(e)}\nTraceback: {traceback.format_exc()}")
 
 @bot.tree.command(name="statusflodown", description="Check the bot's status and last Instagram check")
+@has_allowed_role()
 async def status(interaction: discord.Interaction):
     """Check the bot's status"""
     try:
@@ -301,6 +388,7 @@ async def status(interaction: discord.Interaction):
         await interaction.response.send_message("❌ An error occurred while checking the status.", ephemeral=True)
 
 @bot.tree.command(name="inviteflodown", description="Get the bot's invite link with proper permissions")
+@has_allowed_role()
 async def invite(interaction: discord.Interaction):
     """Get the bot's invite link"""
     try:
