@@ -90,6 +90,7 @@ class BlueSkyMonitor(commands.Cog):
         self.bsky_login_password = os.getenv('BLUESKY_LOGIN_PASSWORD')
         self.bsky_client = Client()
         self.initialized = False
+        
         # Create a session with the API
         try:
             # Try to login and handle validation errors
@@ -112,10 +113,15 @@ class BlueSkyMonitor(commands.Cog):
             # Notify Discord about the failure
             channel = self.bot.get_channel(self.discord_channel_id)
             if channel:
-                asyncio.create_task(channel.send("⚠️ Failed to initialize BlueSky monitor. Instagram monitoring will be stopped."))
-        self.check_feed.start()
-        logging.info("BlueSky Monitor initialized")
-        logging.info(f"Monitoring BlueSky handle: {self.bsky_handle}")
+                asyncio.create_task(channel.send("⚠️ Failed to initialize BlueSky monitor. Instagram monitoring will be stopped.", ephemeral=True))
+            return  # Exit initialization if login fails
+            
+        if self.initialized:
+            self.check_feed.start()
+            logging.info("BlueSky Monitor initialized")
+            logging.info(f"Monitoring BlueSky handle: {self.bsky_handle}")
+        else:
+            logging.error("BlueSky Monitor failed to initialize")
 
     async def send_latest_post(self):
         """Send the latest post to Discord for testing"""
