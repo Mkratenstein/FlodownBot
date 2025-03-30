@@ -22,7 +22,7 @@ logging.basicConfig(
 load_dotenv()
 
 # Verify environment variables
-required_vars = ['DISCORD_TOKEN', 'DISCORD_CHANNEL_ID', 'BLUESKY_HANDLE', 'BLUESKY_PASSWORD', 'APPLICATION_ID']
+required_vars = ['DISCORD_TOKEN', 'DISCORD_CHANNEL_ID', 'BLUESKY_HANDLE', 'APPLICATION_ID']
 missing_vars = [var for var in required_vars if not os.getenv(var)]
 if missing_vars:
     logging.error(f"Missing required environment variables: {', '.join(missing_vars)}")
@@ -43,16 +43,15 @@ class BlueSkyMonitor(commands.Cog):
         self.last_post_uri = None
         self.discord_channel_id = int(os.getenv('DISCORD_CHANNEL_ID'))
         self.bsky_handle = os.getenv('BLUESKY_HANDLE')
-        self.bsky_password = os.getenv('BLUESKY_PASSWORD')
         self.bsky_client = Client()
         self.check_feed.start()
         logging.info("BlueSky Monitor initialized")
+        logging.info(f"Monitoring BlueSky handle: {self.bsky_handle}")
 
     async def send_latest_post(self):
         """Send the latest post to Discord for testing"""
         try:
             logging.info("Fetching latest post for initial display")
-            self.bsky_client.login(self.bsky_handle, self.bsky_password)
             response = self.bsky_client.get_author_feed({'actor': self.bsky_handle})
             
             if not response.feed:
@@ -69,7 +68,7 @@ class BlueSkyMonitor(commands.Cog):
             # Create embed for the latest post
             embed = discord.Embed(
                 description=latest_post.post.record.text,
-                url=f"https://bsky.app/profile/{self.bsky_handle}.bsky.social/post/{latest_post.uri.split('/')[-1]}",
+                url=f"https://bsky.app/profile/{self.bsky_handle}/post/{latest_post.uri.split('/')[-1]}",
                 timestamp=datetime.now(),
                 color=discord.Color.blue()
             )
@@ -82,7 +81,7 @@ class BlueSkyMonitor(commands.Cog):
             # Add footer with source
             embed.set_footer(text="BlueSky", icon_url="https://bsky.app/static/icon.png")
             
-            await channel.send(f"Hey! Goose the Organization just posted something on [BlueSky](https://bsky.app/profile/{self.bsky_handle}.bsky.social)", embed=embed)
+            await channel.send(f"Hey! Goose the Organization just posted something on [BlueSky](https://bsky.app/profile/{self.bsky_handle})", embed=embed)
             logging.info(f"Successfully sent initial post to channel {self.discord_channel_id}")
             
         except Exception as e:
@@ -96,7 +95,6 @@ class BlueSkyMonitor(commands.Cog):
     async def check_feed(self):
         try:
             logging.info(f"Checking BlueSky feed for: {self.bsky_handle}")
-            self.bsky_client.login(self.bsky_handle, self.bsky_password)
             response = self.bsky_client.get_author_feed({'actor': self.bsky_handle})
             
             if not response.feed:
@@ -122,7 +120,7 @@ class BlueSkyMonitor(commands.Cog):
                 # Create embed for the new post
                 embed = discord.Embed(
                     description=latest_post.post.record.text,
-                    url=f"https://bsky.app/profile/{self.bsky_handle}.bsky.social/post/{latest_post.uri.split('/')[-1]}",
+                    url=f"https://bsky.app/profile/{self.bsky_handle}/post/{latest_post.uri.split('/')[-1]}",
                     timestamp=datetime.now(),
                     color=discord.Color.green()
                 )
@@ -135,7 +133,7 @@ class BlueSkyMonitor(commands.Cog):
                 # Add footer with source
                 embed.set_footer(text="BlueSky", icon_url="https://bsky.app/static/icon.png")
                 
-                await channel.send(f"Hey! Goose the Organization just posted something on [BlueSky](https://bsky.app/profile/{self.bsky_handle}.bsky.social)", embed=embed)
+                await channel.send(f"Hey! Goose the Organization just posted something on [BlueSky](https://bsky.app/profile/{self.bsky_handle})", embed=embed)
                 logging.info(f"Successfully sent new post to channel {self.discord_channel_id}")
             else:
                 logging.info("No new posts detected")
@@ -166,6 +164,8 @@ async def on_ready():
     await bluesky_monitor.send_latest_post()
     
     try:
+        # Add delay before syncing commands
+        await asyncio.sleep(5)
         # Sync commands globally
         synced = await bot.tree.sync()
         logging.info(f"Synced {len(synced)} command(s)")
