@@ -23,8 +23,9 @@ A Discord bot that monitors both Instagram and BlueSky feeds and posts updates t
    - `DISCORD_TOKEN`: Your bot's token
    - `DISCORD_CHANNEL_ID`: The channel ID where posts will be sent
    - `INSTAGRAM_RSS_URL`: Your Instagram RSS feed URL
-   - `BLUESKY_HANDLE`: Your BlueSky handle (e.g., username.bsky.social)
-   - `BLUESKY_PASSWORD`: Your BlueSky account password
+   - `BLUESKY_HANDLE`: The BlueSky handle to monitor (e.g., username.bsky.social)
+   - `BLUESKY_LOGIN_EMAIL`: Your BlueSky account email for authentication
+   - `BLUESKY_LOGIN_PASSWORD`: Your BlueSky account password
    - `APPLICATION_ID`: Your bot's application ID
 
 3. **Channel Permissions**
@@ -49,5 +50,5 @@ A Discord bot that monitors both Instagram and BlueSky feeds and posts updates t
 - The bot checks for new posts every 5 minutes
 - Make sure the Instagram profile is public
 - The RSS feed URL can be obtained from services like RSS.app or Pikaso.me
-- BlueSky integration requires your account credentials
+- BlueSky integration requires a BlueSky account for authentication (using email)
 - Both Instagram and BlueSky posts will be sent to the same Discord channel

@@ -22,7 +22,7 @@ logging.basicConfig(
 load_dotenv()
 
 # Verify environment variables
-required_vars = ['DISCORD_TOKEN', 'DISCORD_CHANNEL_ID', 'BLUESKY_HANDLE', 'APPLICATION_ID']
+required_vars = ['DISCORD_TOKEN', 'DISCORD_CHANNEL_ID', 'BLUESKY_HANDLE', 'BLUESKY_LOGIN_EMAIL', 'BLUESKY_LOGIN_PASSWORD', 'APPLICATION_ID']
 missing_vars = [var for var in required_vars if not os.getenv(var)]
 if missing_vars:
     logging.error(f"Missing required environment variables: {', '.join(missing_vars)}")
@@ -31,6 +31,7 @@ if missing_vars:
 logging.info("Environment variables loaded successfully")
 logging.info(f"Channel ID: {os.getenv('DISCORD_CHANNEL_ID')}")
 logging.info(f"BlueSky Handle: {os.getenv('BLUESKY_HANDLE')}")
+logging.info(f"BlueSky Login Email: {os.getenv('BLUESKY_LOGIN_EMAIL')}")
 
 # Bot setup
 intents = discord.Intents.default()
@@ -43,13 +44,15 @@ class BlueSkyMonitor(commands.Cog):
         self.last_post_uri = None
         self.discord_channel_id = int(os.getenv('DISCORD_CHANNEL_ID'))
         self.bsky_handle = os.getenv('BLUESKY_HANDLE')
+        self.bsky_login_email = os.getenv('BLUESKY_LOGIN_EMAIL')
+        self.bsky_login_password = os.getenv('BLUESKY_LOGIN_PASSWORD')
         self.bsky_client = Client()
         # Create a session with the API
         try:
-            self.bsky_client.create_session()
-            logging.info("Successfully created BlueSky session")
+            self.bsky_client.login(self.bsky_login_email, self.bsky_login_password)
+            logging.info("Successfully logged into BlueSky")
         except Exception as e:
-            logging.error(f"Failed to create BlueSky session: {str(e)}")
+            logging.error(f"Failed to login to BlueSky: {str(e)}")
         self.check_feed.start()
         logging.info("BlueSky Monitor initialized")
         logging.info(f"Monitoring BlueSky handle: {self.bsky_handle}")
@@ -59,8 +62,8 @@ class BlueSkyMonitor(commands.Cog):
         try:
             logging.info("Fetching latest post for initial display")
             # Ensure we have a valid session
-            if not self.bsky_client.session:
-                self.bsky_client.create_session()
+            if not self.bsky_client._session:
+                self.bsky_client.login(self.bsky_login_email, self.bsky_login_password)
             
             response = self.bsky_client.app.bsky.feed.get_author_feed({'actor': self.bsky_handle})
             
@@ -92,7 +95,7 @@ class BlueSkyMonitor(commands.Cog):
             embed.set_footer(text="BlueSky", icon_url="https://bsky.app/static/icon.png")
             
             # Send as ephemeral message for testing
-            await channel.send(f"Hey! Goose the Organization just posted something on [BlueSky](https://bsky.app/profile/{self.bsky_handle})", embed=embed, ephemeral=True)
+            await channel.send(f"Hey! Goose the Organization just posted something on [BlueSky](https://bsky.app/profile/{self.bsky_handle})", embed=embed)
             logging.info(f"Successfully sent initial post to channel {self.discord_channel_id}")
             
         except Exception as e:
@@ -101,7 +104,7 @@ class BlueSkyMonitor(commands.Cog):
             try:
                 channel = self.bot.get_channel(self.discord_channel_id)
                 if channel:
-                    await channel.send(f"⚠️ Error sending initial post: {str(e)}", ephemeral=True)
+                    await channel.send(f"⚠️ Error sending initial post: {str(e)}")
                 else:
                     logging.error(f"Could not find channel with ID: {self.discord_channel_id}")
             except Exception as e:
@@ -115,8 +118,8 @@ class BlueSkyMonitor(commands.Cog):
         try:
             logging.info(f"Checking BlueSky feed for: {self.bsky_handle}")
             # Ensure we have a valid session
-            if not self.bsky_client.session:
-                self.bsky_client.create_session()
+            if not self.bsky_client._session:
+                self.bsky_client.login(self.bsky_login_email, self.bsky_login_password)
             
             response = self.bsky_client.app.bsky.feed.get_author_feed({'actor': self.bsky_handle})
             
@@ -157,7 +160,7 @@ class BlueSkyMonitor(commands.Cog):
                 embed.set_footer(text="BlueSky", icon_url="https://bsky.app/static/icon.png")
                 
                 # Send as ephemeral message for testing
-                await channel.send(f"Hey! Goose the Organization just posted something on [BlueSky](https://bsky.app/profile/{self.bsky_handle})", embed=embed, ephemeral=True)
+                await channel.send(f"Hey! Goose the Organization just posted something on [BlueSky](https://bsky.app/profile/{self.bsky_handle})", embed=embed)
                 logging.info(f"Successfully sent new post to channel {self.discord_channel_id}")
             else:
                 logging.info("No new posts detected")
@@ -168,7 +171,7 @@ class BlueSkyMonitor(commands.Cog):
             try:
                 channel = self.bot.get_channel(self.discord_channel_id)
                 if channel:
-                    await channel.send(f"⚠️ Error checking BlueSky feed: {str(e)}", ephemeral=True)
+                    await channel.send(f"⚠️ Error checking BlueSky feed: {str(e)}")
                 else:
                     logging.error(f"Could not find channel with ID: {self.discord_channel_id}")
             except Exception as e:
