@@ -69,7 +69,7 @@ class BlueSkyMonitor(commands.Cog):
             # Create embed for the latest post
             embed = discord.Embed(
                 description=latest_post.post.record.text,
-                url=f"https://bsky.app/profile/{self.bsky_handle}/post/{latest_post.uri.split('/')[-1]}",
+                url=f"https://bsky.app/profile/{self.bsky_handle}.bsky.social/post/{latest_post.uri.split('/')[-1]}",
                 timestamp=datetime.now(),
                 color=discord.Color.blue()
             )
@@ -82,7 +82,7 @@ class BlueSkyMonitor(commands.Cog):
             # Add footer with source
             embed.set_footer(text="BlueSky", icon_url="https://bsky.app/static/icon.png")
             
-            await channel.send(f"Hey! Goose the Organization just posted something on [BlueSky](https://bsky.app/profile/{self.bsky_handle})", embed=embed)
+            await channel.send(f"Hey! Goose the Organization just posted something on [BlueSky](https://bsky.app/profile/{self.bsky_handle}.bsky.social)", embed=embed)
             logging.info(f"Successfully sent initial post to channel {self.discord_channel_id}")
             
         except Exception as e:
@@ -122,7 +122,7 @@ class BlueSkyMonitor(commands.Cog):
                 # Create embed for the new post
                 embed = discord.Embed(
                     description=latest_post.post.record.text,
-                    url=f"https://bsky.app/profile/{self.bsky_handle}/post/{latest_post.uri.split('/')[-1]}",
+                    url=f"https://bsky.app/profile/{self.bsky_handle}.bsky.social/post/{latest_post.uri.split('/')[-1]}",
                     timestamp=datetime.now(),
                     color=discord.Color.green()
                 )
@@ -135,7 +135,7 @@ class BlueSkyMonitor(commands.Cog):
                 # Add footer with source
                 embed.set_footer(text="BlueSky", icon_url="https://bsky.app/static/icon.png")
                 
-                await channel.send(f"Hey! Goose the Organization just posted something on [BlueSky](https://bsky.app/profile/{self.bsky_handle})", embed=embed)
+                await channel.send(f"Hey! Goose the Organization just posted something on [BlueSky](https://bsky.app/profile/{self.bsky_handle}.bsky.social)", embed=embed)
                 logging.info(f"Successfully sent new post to channel {self.discord_channel_id}")
             else:
                 logging.info("No new posts detected")
