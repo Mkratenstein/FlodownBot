@@ -355,6 +355,9 @@ async def on_ready():
     await instagram_monitor.send_latest_post()
     
     try:
+        # Clear existing commands
+        bot.tree.clear_commands(guild=None)
+        
         # Sync commands globally
         synced = await bot.tree.sync()
         logging.info(f"Synced {len(synced)} command(s)")
