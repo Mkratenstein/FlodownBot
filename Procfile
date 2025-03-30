@@ -1,1 +1,1 @@
-worker: python InstagramRSS.py & python BlueSkyRSS.py 
+web: python InstagramRSS.py 

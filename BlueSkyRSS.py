@@ -2,13 +2,13 @@ import discord
 from discord.ext import commands, tasks
 from discord import app_commands
 import os
-from dotenv import load_dotenv
 import logging
 from datetime import datetime
 import traceback
 from atproto import Client
 import asyncio
 import requests
+from config import bot, has_allowed_role
 
 # Set up logging
 logging.basicConfig(
@@ -80,23 +80,6 @@ logging.info("Environment variables loaded successfully")
 logging.info(f"Channel ID: {os.getenv('DISCORD_CHANNEL_ID')}")
 logging.info(f"BlueSky Handle: {os.getenv('BLUESKY_HANDLE')}")
 logging.info(f"BlueSky Login Email: {os.getenv('BLUESKY_LOGIN_EMAIL')}")
-
-def has_allowed_role():
-    """Check if the user has any of the allowed roles"""
-    async def predicate(interaction: discord.Interaction) -> bool:
-        if not interaction.user.roles:
-            await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
-            return False
-            
-        user_roles = [role.id for role in interaction.user.roles]
-        has_role = any(role_id in user_roles for role_id in ALLOWED_ROLE_IDS)
-        
-        if not has_role:
-            await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
-            return False
-            
-        return True
-    return commands.check(predicate)
 
 class BlueSkyMonitor(commands.Cog):
     def __init__(self, bot):
