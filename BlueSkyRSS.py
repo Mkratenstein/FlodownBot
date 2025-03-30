@@ -52,7 +52,7 @@ class BlueSkyMonitor(commands.Cog):
         """Send the latest post to Discord for testing"""
         try:
             logging.info("Fetching latest post for initial display")
-            response = self.bsky_client.get_author_feed({'actor': self.bsky_handle})
+            response = self.bsky_client.app.bsky.feed.get_author_feed({'actor': self.bsky_handle})
             
             if not response.feed:
                 logging.warning("No posts found for initial display")
@@ -81,7 +81,8 @@ class BlueSkyMonitor(commands.Cog):
             # Add footer with source
             embed.set_footer(text="BlueSky", icon_url="https://bsky.app/static/icon.png")
             
-            await channel.send(f"Hey! Goose the Organization just posted something on [BlueSky](https://bsky.app/profile/{self.bsky_handle})", embed=embed)
+            # Send as ephemeral message for testing
+            await channel.send(f"Hey! Goose the Organization just posted something on [BlueSky](https://bsky.app/profile/{self.bsky_handle})", embed=embed, ephemeral=True)
             logging.info(f"Successfully sent initial post to channel {self.discord_channel_id}")
             
         except Exception as e:
@@ -95,7 +96,7 @@ class BlueSkyMonitor(commands.Cog):
     async def check_feed(self):
         try:
             logging.info(f"Checking BlueSky feed for: {self.bsky_handle}")
-            response = self.bsky_client.get_author_feed({'actor': self.bsky_handle})
+            response = self.bsky_client.app.bsky.feed.get_author_feed({'actor': self.bsky_handle})
             
             if not response.feed:
                 logging.warning("No posts found in BlueSky feed")
@@ -133,7 +134,8 @@ class BlueSkyMonitor(commands.Cog):
                 # Add footer with source
                 embed.set_footer(text="BlueSky", icon_url="https://bsky.app/static/icon.png")
                 
-                await channel.send(f"Hey! Goose the Organization just posted something on [BlueSky](https://bsky.app/profile/{self.bsky_handle})", embed=embed)
+                # Send as ephemeral message for testing
+                await channel.send(f"Hey! Goose the Organization just posted something on [BlueSky](https://bsky.app/profile/{self.bsky_handle})", embed=embed, ephemeral=True)
                 logging.info(f"Successfully sent new post to channel {self.discord_channel_id}")
             else:
                 logging.info("No new posts detected")
