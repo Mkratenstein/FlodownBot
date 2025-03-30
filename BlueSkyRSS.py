@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands, tasks
+from discord import app_commands
 import os
 from dotenv import load_dotenv
 import logging
@@ -150,7 +151,7 @@ class BlueSkyMonitor(commands.Cog):
                 asyncio.create_task(channel.send("⚠️ Failed to initialize BlueSky monitor. Instagram monitoring will be stopped."))
             return
 
-    @commands.slash_command(name="testbluesky", description="Test the BlueSky monitor by fetching the latest post")
+    @app_commands.command(name="testbluesky", description="Test the BlueSky monitor by fetching the latest post")
     @has_allowed_role()
     async def test_bluesky(self, interaction: discord.Interaction):
         """Test the BlueSky monitor by fetching the latest post"""

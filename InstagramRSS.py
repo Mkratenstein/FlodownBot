@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands, tasks
+from discord import app_commands
 import feedparser
 import os
 from dotenv import load_dotenv
