@@ -272,4 +272,8 @@ class BlueSkyMonitor(commands.Cog):
 
     @check_feed.before_loop
     async def before_check_feed(self):
-        await self.bot.wait_until_ready() 
+        await self.bot.wait_until_ready()
+
+async def setup(bot):
+    await bot.add_cog(BlueSkyMonitor(bot))
+    logging.info("BlueSky Monitor cog added successfully") 

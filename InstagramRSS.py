@@ -335,9 +335,10 @@ async def on_ready():
     
     # First try to initialize BlueSky monitor
     try:
-        bluesky_monitor = BlueSkyMonitor(bot)
-        await bot.add_cog(bluesky_monitor)
-        if not bluesky_monitor.initialized:
+        from BlueSkyRSS import setup as setup_bluesky
+        await setup_bluesky(bot)
+        bluesky_cog = bot.get_cog('BlueSkyMonitor')
+        if not bluesky_cog or not bluesky_cog.initialized:
             logging.error("BlueSky monitor failed to initialize properly")
             return
         logging.info("BlueSky Monitor initialized successfully")
@@ -361,6 +362,10 @@ async def on_ready():
         # Log all registered commands
         for command in bot.tree.get_commands():
             logging.info(f"Registered command: {command.name}")
+            
+        # Force sync commands to ensure they're available
+        await bot.tree.sync()
+        logging.info("Commands synced successfully")
     except Exception as e:
         logging.error(f"Failed to sync commands: {str(e)}\nTraceback: {traceback.format_exc()}")
 
