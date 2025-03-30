@@ -41,6 +41,31 @@ A Discord bot that monitors both Instagram and BlueSky feeds and posts updates t
    - Add the role IDs to the `ALLOWED_ROLE_IDS` environment variable
    - Users without the required roles will receive an ephemeral error message
 
+## Deployment
+
+1. **Local Deployment**
+   ```bash
+   # Install dependencies
+   pip install -r requirements.txt
+   
+   # Run the bot
+   python InstagramRSS.py
+   ```
+
+2. **Container Deployment**
+   ```bash
+   # Build the container
+   docker build -t discord-bot .
+   
+   # Run the container
+   docker run -d --env-file Instagram.env discord-bot
+   ```
+
+3. **Platform Deployment**
+   - Make sure to set all required environment variables in your deployment platform
+   - The bot requires Python 3.11 or higher
+   - Ensure the deployment platform has enough memory (recommended: 512MB+)
+
 ## Commands
 - `/testinstagram`: Test the Instagram monitor by fetching the latest post
 - `/testbluesky`: Test the BlueSky monitor by fetching the latest post
@@ -66,6 +91,31 @@ A Discord bot that monitors both Instagram and BlueSky feeds and posts updates t
 - atproto==0.0.31
 - requests==2.31.0
 - PyNaCl==1.5.0 (for voice support)
+- lxml==4.9.3 (for better XML parsing)
+- html5lib==1.1 (for better HTML parsing)
+
+## Troubleshooting
+
+1. **Instagram RSS Feed Issues**
+   - Ensure the Instagram profile is public
+   - Verify the RSS feed URL is valid and accessible
+   - Check if the RSS service (RSS.app/Pikaso.me) is working
+   - Try regenerating the RSS feed URL
+
+2. **BlueSky Authentication Issues**
+   - Verify your BlueSky credentials are correct
+   - Check if your BlueSky account is active
+   - Ensure the handle is correct and accessible
+
+3. **Discord Connection Issues**
+   - Verify the bot token is valid
+   - Check if the bot has the required permissions
+   - Ensure the channel ID is correct
+
+4. **Common Error Messages**
+   - "Invalid RSS feed": The RSS feed URL is invalid or expired
+   - "Failed to initialize BlueSky monitor": Authentication or connection issues
+   - "No entries found in RSS feed": The feed is empty or inaccessible
 
 ## Notes
 - The bot checks for new posts every 5 minutes
@@ -75,3 +125,4 @@ A Discord bot that monitors both Instagram and BlueSky feeds and posts updates t
 - Both Instagram and BlueSky posts will be sent to the same Discord channel
 - The bot will stop Instagram monitoring if BlueSky monitoring fails to initialize
 - All commands require specific role permissions to use
+- Logs are stored in `bot.log` for debugging

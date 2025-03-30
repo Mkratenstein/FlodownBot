@@ -1,1 +1,1 @@
-web: python InstagramRSS.py 
+web: python3.11 InstagramRSS.py 

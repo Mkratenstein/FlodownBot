@@ -1,6 +1,6 @@
 import os
-from dotenv import load_dotenv
 import logging
+from dotenv import load_dotenv
 import discord
 from discord.ext import commands
 
@@ -25,21 +25,6 @@ env_loaded = False
 for env_path in env_paths:
     if os.path.exists(env_path):
         logging.info(f"Found .env file at: {env_path}")
-        try:
-            # Try to read the file contents
-            with open(env_path, 'r') as f:
-                contents = f.read()
-                logging.info(f"Successfully read .env file. Contains {len(contents)} characters")
-                logging.info("File contents (with sensitive data masked):")
-                for line in contents.splitlines():
-                    if line.strip() and not line.startswith('#'):
-                        key, value = line.split('=', 1)
-                        if key in ['DISCORD_TOKEN', 'BLUESKY_LOGIN_PASSWORD']:
-                            value = '********'
-                        logging.info(f"{key}: {value}")
-        except Exception as e:
-            logging.error(f"Error reading .env file: {str(e)}")
-        
         load_dotenv(env_path)
         env_loaded = True
         break
@@ -47,20 +32,13 @@ for env_path in env_paths:
 if not env_loaded:
     logging.warning("No .env file found in any expected location")
 
-# Debug logging for environment variables
-logging.info("Checking environment variables:")
-for var in ['DISCORD_TOKEN', 'DISCORD_CHANNEL_ID', 'INSTAGRAM_RSS_URL', 'BLUESKY_HANDLE', 'BLUESKY_LOGIN_EMAIL', 'BLUESKY_LOGIN_PASSWORD', 'APPLICATION_ID', 'ALLOWED_ROLE_IDS']:
-    value = os.getenv(var)
-    if value:
-        # Mask sensitive values
-        if var in ['DISCORD_TOKEN', 'BLUESKY_LOGIN_PASSWORD']:
-            value = '********'
-        logging.info(f"{var}: {value}")
-    else:
-        logging.error(f"{var}: Not found")
-
 # Verify environment variables
-required_vars = ['DISCORD_TOKEN', 'DISCORD_CHANNEL_ID', 'INSTAGRAM_RSS_URL', 'BLUESKY_HANDLE', 'BLUESKY_LOGIN_EMAIL', 'BLUESKY_LOGIN_PASSWORD', 'APPLICATION_ID', 'ALLOWED_ROLE_IDS']
+required_vars = [
+    'DISCORD_TOKEN', 'DISCORD_CHANNEL_ID', 'INSTAGRAM_RSS_URL',
+    'BLUESKY_HANDLE', 'BLUESKY_LOGIN_EMAIL', 'BLUESKY_LOGIN_PASSWORD',
+    'APPLICATION_ID', 'ALLOWED_ROLE_IDS'
+]
+
 missing_vars = [var for var in required_vars if not os.getenv(var)]
 if missing_vars:
     logging.error(f"Missing required environment variables: {', '.join(missing_vars)}")
