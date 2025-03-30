@@ -113,7 +113,7 @@ class BlueSkyMonitor(commands.Cog):
             # Notify Discord about the failure
             channel = self.bot.get_channel(self.discord_channel_id)
             if channel:
-                asyncio.create_task(channel.send("⚠️ Failed to initialize BlueSky monitor. Instagram monitoring will be stopped.", ephemeral=True))
+                asyncio.create_task(channel.send("⚠️ Failed to initialize BlueSky monitor. Instagram monitoring will be stopped."))
             return  # Exit initialization if login fails
             
         if self.initialized:
