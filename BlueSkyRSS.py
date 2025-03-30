@@ -120,8 +120,14 @@ class BlueSkyMonitor(commands.Cog):
                         'Authorization': f'Bearer {data["accessJwt"]}'
                     })
                     self.bsky_client._session.me = data['did']
-                    logging.info("Successfully logged into BlueSky")
-                    self.initialized = True
+                    
+                    # Test the session with a simple API call
+                    test_response = session.get('https://bsky.social/xrpc/com.atproto.server.getSession')
+                    if test_response.status_code == 200:
+                        logging.info("Successfully logged into BlueSky and verified session")
+                        self.initialized = True
+                    else:
+                        raise Exception(f"Session verification failed: {test_response.status_code} {test_response.text}")
                 else:
                     error_msg = f"Failed to create session: {response.status_code} {response.text}"
                     logging.error(error_msg)
