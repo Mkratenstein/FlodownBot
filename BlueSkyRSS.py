@@ -8,7 +8,6 @@ import traceback
 from atproto import Client
 import asyncio
 import requests
-from InstagramRSS import InstagramMonitor
 
 # Set up logging
 logging.basicConfig(
