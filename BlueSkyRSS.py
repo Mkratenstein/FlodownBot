@@ -92,9 +92,21 @@ class BlueSkyMonitor(commands.Cog):
         self.initialized = False
         # Create a session with the API
         try:
-            self.bsky_client.login(self.bsky_login_email, self.bsky_login_password)
-            logging.info("Successfully logged into BlueSky")
-            self.initialized = True
+            # Try to login and handle validation errors
+            try:
+                self.bsky_client.login(self.bsky_login_email, self.bsky_login_password)
+                logging.info("Successfully logged into BlueSky")
+                self.initialized = True
+            except Exception as e:
+                if "validation errors for Response" in str(e):
+                    # If we get validation errors but the session was created, we can still proceed
+                    if self.bsky_client._session:
+                        logging.warning("BlueSky login succeeded despite validation errors")
+                        self.initialized = True
+                    else:
+                        raise e
+                else:
+                    raise e
         except Exception as e:
             logging.error(f"Failed to login to BlueSky: {str(e)}")
             # Notify Discord about the failure
@@ -118,8 +130,13 @@ class BlueSkyMonitor(commands.Cog):
                 try:
                     self.bsky_client.login(self.bsky_login_email, self.bsky_login_password)
                 except Exception as e:
-                    logging.error(f"Failed to re-login to BlueSky: {str(e)}")
-                    return
+                    if "validation errors for Response" in str(e):
+                        if not self.bsky_client._session:
+                            logging.error(f"Failed to re-login to BlueSky: {str(e)}")
+                            return
+                    else:
+                        logging.error(f"Failed to re-login to BlueSky: {str(e)}")
+                        return
             
             response = self.bsky_client.app.bsky.feed.get_author_feed({'actor': self.bsky_handle})
             
@@ -182,8 +199,13 @@ class BlueSkyMonitor(commands.Cog):
                 try:
                     self.bsky_client.login(self.bsky_login_email, self.bsky_login_password)
                 except Exception as e:
-                    logging.error(f"Failed to re-login to BlueSky: {str(e)}")
-                    return
+                    if "validation errors for Response" in str(e):
+                        if not self.bsky_client._session:
+                            logging.error(f"Failed to re-login to BlueSky: {str(e)}")
+                            return
+                    else:
+                        logging.error(f"Failed to re-login to BlueSky: {str(e)}")
+                        return
             
             response = self.bsky_client.app.bsky.feed.get_author_feed({'actor': self.bsky_handle})
             
