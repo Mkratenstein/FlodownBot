@@ -95,21 +95,36 @@ class BlueSkyMonitor(commands.Cog):
         try:
             # Try to login and handle validation errors
             try:
-                self.bsky_client.login(self.bsky_login_email, self.bsky_login_password)
-                logging.info("Successfully logged into BlueSky")
-                self.initialized = True
-            except Exception as e:
-                if "validation errors for Response" in str(e):
-                    # If we get validation errors but the session was created, we can still proceed
-                    if hasattr(self.bsky_client, '_session') and self.bsky_client._session:
-                        logging.warning("BlueSky login succeeded despite validation errors")
-                        self.initialized = True
-                    else:
-                        raise e
+                # Create session with raw response handling
+                response = self.bsky_client._session.post(
+                    'https://bsky.social/xrpc/com.atproto.server.createSession',
+                    json={
+                        'identifier': self.bsky_login_email,
+                        'password': self.bsky_login_password
+                    }
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    # Set the session data directly
+                    self.bsky_client._session.headers.update({
+                        'Authorization': f'Bearer {data.get("accessJwt")}'
+                    })
+                    self.bsky_client._session.me = data.get('did')
+                    logging.info("Successfully logged into BlueSky")
+                    self.initialized = True
                 else:
-                    raise e
+                    raise Exception(f"Failed to create session: {response.status_code} {response.text}")
+            except Exception as e:
+                logging.error(f"Failed to login to BlueSky: {str(e)}")
+                # Notify Discord about the failure
+                channel = self.bot.get_channel(self.discord_channel_id)
+                if channel:
+                    asyncio.create_task(channel.send("⚠️ Failed to initialize BlueSky monitor. Instagram monitoring will be stopped."))
+                return  # Exit initialization if login fails
+                
         except Exception as e:
-            logging.error(f"Failed to login to BlueSky: {str(e)}")
+            logging.error(f"Failed to initialize BlueSky client: {str(e)}")
             # Notify Discord about the failure
             channel = self.bot.get_channel(self.discord_channel_id)
             if channel:
