@@ -19,9 +19,37 @@ logging.basicConfig(
 )
 
 # Load environment variables
-env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Instagram.env')
-logging.info(f"Loading environment variables from: {env_path}")
-load_dotenv(env_path)
+# Try both local and container paths
+env_paths = [
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Instagram.env'),
+    '/app/Instagram.env'
+]
+
+env_loaded = False
+for env_path in env_paths:
+    if os.path.exists(env_path):
+        logging.info(f"Found .env file at: {env_path}")
+        try:
+            # Try to read the file contents
+            with open(env_path, 'r') as f:
+                contents = f.read()
+                logging.info(f"Successfully read .env file. Contains {len(contents)} characters")
+                logging.info("File contents (with sensitive data masked):")
+                for line in contents.splitlines():
+                    if line.strip() and not line.startswith('#'):
+                        key, value = line.split('=', 1)
+                        if key in ['DISCORD_TOKEN', 'BLUESKY_LOGIN_PASSWORD']:
+                            value = '********'
+                        logging.info(f"{key}: {value}")
+        except Exception as e:
+            logging.error(f"Error reading .env file: {str(e)}")
+        
+        load_dotenv(env_path)
+        env_loaded = True
+        break
+
+if not env_loaded:
+    logging.warning("No .env file found in any expected location")
 
 # Debug logging for environment variables
 logging.info("Checking environment variables:")

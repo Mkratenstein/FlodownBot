@@ -49,6 +49,16 @@ class InstagramMonitor(commands.Cog):
     async def send_latest_post(self):
         """Send the latest post to Discord for testing"""
         try:
+            # Check if BlueSky monitor is running
+            bluesky_cog = self.bot.get_cog('BlueSkyMonitor')
+            if not bluesky_cog:
+                logging.error("BlueSky monitor not initialized. Stopping Instagram monitor.")
+                self.check_feed.stop()
+                channel = self.bot.get_channel(self.discord_channel_id)
+                if channel:
+                    await channel.send("⚠️ Instagram monitoring stopped because BlueSky monitor failed to initialize.")
+                return
+
             logging.info("Fetching latest post for initial display")
             feed = feedparser.parse(self.rss_url)
             
@@ -118,6 +128,16 @@ class InstagramMonitor(commands.Cog):
     @tasks.loop(minutes=5)
     async def check_feed(self):
         try:
+            # Check if BlueSky monitor is running
+            bluesky_cog = self.bot.get_cog('BlueSkyMonitor')
+            if not bluesky_cog:
+                logging.error("BlueSky monitor not initialized. Stopping Instagram monitor.")
+                self.check_feed.stop()
+                channel = self.bot.get_channel(self.discord_channel_id)
+                if channel:
+                    await channel.send("⚠️ Instagram monitoring stopped because BlueSky monitor failed to initialize.")
+                return
+
             logging.info(f"Checking RSS feed: {self.rss_url}")
             feed = feedparser.parse(self.rss_url)
             
@@ -224,6 +244,18 @@ class InstagramMonitor(commands.Cog):
 @bot.event
 async def on_ready():
     logging.info(f'Bot is ready: {bot.user.name}')
+    
+    # First try to initialize BlueSky monitor
+    try:
+        bluesky_monitor = BlueSkyMonitor(bot)
+        await bot.add_cog(bluesky_monitor)
+        logging.info("BlueSky Monitor initialized successfully")
+    except Exception as e:
+        logging.error(f"Failed to initialize BlueSky Monitor: {str(e)}")
+        # Don't initialize Instagram monitor if BlueSky fails
+        return
+    
+    # Only initialize Instagram monitor if BlueSky monitor is running
     instagram_monitor = InstagramMonitor(bot)
     await bot.add_cog(instagram_monitor)
     
