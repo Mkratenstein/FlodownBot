@@ -7,6 +7,7 @@ from datetime import datetime
 import traceback
 from atproto import Client, models
 import asyncio
+import requests
 
 # Set up logging
 logging.basicConfig(
@@ -96,7 +97,8 @@ class BlueSkyMonitor(commands.Cog):
             # Try to login and handle validation errors
             try:
                 # Create session with raw response handling
-                response = self.bsky_client._session.post(
+                session = requests.Session()
+                response = session.post(
                     'https://bsky.social/xrpc/com.atproto.server.createSession',
                     json={
                         'identifier': self.bsky_login_email,
@@ -113,6 +115,7 @@ class BlueSkyMonitor(commands.Cog):
                         raise Exception(f"Missing required data in response: {data}")
                     
                     # Set the session data directly
+                    self.bsky_client._session = session
                     self.bsky_client._session.headers.update({
                         'Authorization': f'Bearer {data["accessJwt"]}'
                     })
