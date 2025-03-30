@@ -94,34 +94,39 @@ class BlueSkyMonitor(commands.Cog):
         # Try to login to BlueSky
         try:
             logging.info("Attempting to login to BlueSky...")
-            try:
-                self.bsky_client.login(self.bsky_login_email, self.bsky_login_password)
-                logging.info("Successfully logged into BlueSky")
-                self.initialized = True
-                
-                # Test the session with a simple API call
-                test_response = self.bsky_client.app.bsky.feed.get_author_feed({'actor': self.bsky_handle})
-                if test_response:
-                    logging.info("Successfully verified BlueSky session")
-                else:
-                    raise Exception("Failed to verify BlueSky session")
-            except Exception as e:
-                if "validation errors for Response" in str(e):
-                    # If we get validation errors but the session was created, we can still proceed
-                    if hasattr(self.bsky_client, '_session') and self.bsky_client._session:
-                        logging.warning("BlueSky login succeeded despite validation errors")
+            # Create a session using requests first to verify credentials
+            session = requests.Session()
+            response = session.post(
+                'https://bsky.social/xrpc/com.atproto.server.createSession',
+                json={
+                    'identifier': self.bsky_login_email,
+                    'password': self.bsky_login_password
+                }
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                if 'accessJwt' in data and 'did' in data:
+                    logging.info("Successfully authenticated with BlueSky")
+                    # Now try to initialize the client
+                    try:
+                        self.bsky_client.login(self.bsky_login_email, self.bsky_login_password)
                         self.initialized = True
-                        
-                        # Test the session with a simple API call
-                        test_response = self.bsky_client.app.bsky.feed.get_author_feed({'actor': self.bsky_handle})
-                        if test_response:
-                            logging.info("Successfully verified BlueSky session")
+                        logging.info("BlueSky client initialized successfully")
+                    except Exception as e:
+                        if "validation errors for Response" in str(e):
+                            # If we get validation errors but the session was created, we can still proceed
+                            if hasattr(self.bsky_client, '_session') and self.bsky_client._session:
+                                logging.warning("BlueSky login succeeded despite validation errors")
+                                self.initialized = True
+                            else:
+                                raise e
                         else:
-                            raise Exception("Failed to verify BlueSky session")
-                    else:
-                        raise e
+                            raise e
                 else:
-                    raise e
+                    raise Exception("Invalid response from BlueSky API")
+            else:
+                raise Exception(f"Failed to authenticate with BlueSky: {response.status_code}")
                 
         except Exception as e:
             logging.error(f"Failed to initialize BlueSky client: {str(e)}")
