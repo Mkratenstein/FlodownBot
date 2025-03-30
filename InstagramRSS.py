@@ -7,6 +7,7 @@ import logging
 from datetime import datetime
 import traceback
 import re
+from BlueSkyRSS import BlueSkyMonitor
 
 # Set up logging
 logging.basicConfig(

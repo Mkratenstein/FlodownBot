@@ -100,7 +100,7 @@ class BlueSkyMonitor(commands.Cog):
             except Exception as e:
                 if "validation errors for Response" in str(e):
                     # If we get validation errors but the session was created, we can still proceed
-                    if self.bsky_client._session:
+                    if hasattr(self.bsky_client, '_session') and self.bsky_client._session:
                         logging.warning("BlueSky login succeeded despite validation errors")
                         self.initialized = True
                     else:
@@ -126,12 +126,12 @@ class BlueSkyMonitor(commands.Cog):
 
             logging.info("Fetching latest post for initial display")
             # Ensure we have a valid session
-            if not self.bsky_client._session:
+            if not hasattr(self.bsky_client, '_session') or not self.bsky_client._session:
                 try:
                     self.bsky_client.login(self.bsky_login_email, self.bsky_login_password)
                 except Exception as e:
                     if "validation errors for Response" in str(e):
-                        if not self.bsky_client._session:
+                        if not hasattr(self.bsky_client, '_session') or not self.bsky_client._session:
                             logging.error(f"Failed to re-login to BlueSky: {str(e)}")
                             return
                     else:
@@ -195,12 +195,12 @@ class BlueSkyMonitor(commands.Cog):
 
             logging.info(f"Checking BlueSky feed for: {self.bsky_handle}")
             # Ensure we have a valid session
-            if not self.bsky_client._session:
+            if not hasattr(self.bsky_client, '_session') or not self.bsky_client._session:
                 try:
                     self.bsky_client.login(self.bsky_login_email, self.bsky_login_password)
                 except Exception as e:
                     if "validation errors for Response" in str(e):
-                        if not self.bsky_client._session:
+                        if not hasattr(self.bsky_client, '_session') or not self.bsky_client._session:
                             logging.error(f"Failed to re-login to BlueSky: {str(e)}")
                             return
                     else:
