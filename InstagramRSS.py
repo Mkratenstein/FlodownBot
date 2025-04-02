@@ -61,24 +61,31 @@ def has_allowed_role():
 class InstagramMonitorCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        logging.info("Initializing Instagram Monitor Cog...")
         self.instagram_monitor = InstagramMonitor()
         self.bluesky_monitor = BlueSkyMonitor()
         self.check_feed.start()
         self.last_check = None
+        logging.info("Instagram Monitor Cog initialized successfully")
         
     def cog_unload(self):
+        logging.info("Unloading Instagram Monitor Cog...")
         self.check_feed.cancel()
+        logging.info("Instagram Monitor Cog unloaded")
         
     @tasks.loop(minutes=5)
     async def check_feed(self):
         """Check for new Instagram posts every 5 minutes"""
         try:
             self.last_check = datetime.now()
+            logging.info("Checking for new Instagram posts...")
             post = self.instagram_monitor.get_latest_post()
             
             if post:
+                logging.info(f"New post found! Post ID: {post['post_id']}")
                 channel = self.bot.get_channel(int(os.getenv('DISCORD_CHANNEL_ID')))
                 if channel:
+                    logging.info(f"Posting to channel: {channel.name} (ID: {channel.id})")
                     embed = discord.Embed(
                         title="Hey! Goose the Organization just posted something on Instagram",
                         description=f"[Instagram]({post['url']})\n\n{post['caption']}",
@@ -89,6 +96,11 @@ class InstagramMonitorCog(commands.Cog):
                         embed.set_image(url=post['thumbnail_url'])
                         
                     await channel.send(embed=embed)
+                    logging.info("Post successfully sent to Discord")
+                else:
+                    logging.error(f"Could not find channel with ID: {os.getenv('DISCORD_CHANNEL_ID')}")
+            else:
+                logging.info("No new posts found")
                     
         except Exception as e:
             logging.error(f"Error in check_feed: {str(e)}")
@@ -160,15 +172,29 @@ async def on_ready():
     """Bot is ready and connected to Discord"""
     logging.info(f"Bot is ready! Logged in as {bot.user.name}")
     
+    # Add the Instagram monitor cog first
+    await bot.add_cog(InstagramMonitorCog(bot))
+    
+    # Clear existing commands
+    bot.tree.clear_commands(guild=None)
+    
+    # Register all commands from cogs
+    for cog in bot.cogs.values():
+        for command in cog.get_commands():
+            logging.info(f"Registering command from cog {cog.__class__.__name__}: {command.name}")
+            bot.tree.add_command(command)
+    
     # Sync commands with Discord
     try:
         synced = await bot.tree.sync()
         logging.info(f"Synced {len(synced)} command(s)")
+        
+        # Log all registered commands
+        for command in bot.tree.get_commands():
+            logging.info(f"Registered command: {command.name}")
     except Exception as e:
         logging.error(f"Error syncing commands: {str(e)}")
-        
-    # Add the Instagram monitor cog
-    await bot.add_cog(InstagramMonitorCog(bot))
+        logging.error(traceback.format_exc())
 
 @bot.tree.command(name="status", description="Check the bot's status and last Instagram check")
 @has_allowed_role()
