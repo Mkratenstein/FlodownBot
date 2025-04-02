@@ -63,7 +63,7 @@ class InstagramMonitorCog(commands.Cog):
         self.bot = bot
         logging.info("Initializing Instagram Monitor Cog...")
         self.instagram_monitor = InstagramMonitor()
-        self.bluesky_monitor = BlueSkyMonitor()
+        self.bluesky_monitor = BlueSkyMonitor(bot)
         self.check_feed.start()
         self.last_check = None
         logging.info("Instagram Monitor Cog initialized successfully")
