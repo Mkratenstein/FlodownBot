@@ -5,6 +5,7 @@ from datetime import datetime
 from database import init_db, get_latest_post_id, save_post, get_post_history
 import os
 from dotenv import load_dotenv
+import time
 
 # Set up logging
 logging.basicConfig(
@@ -25,10 +26,21 @@ class InstagramMonitor:
         self.instagram_username = os.getenv('INSTAGRAM_USERNAME', 'goosetheband')
         self.loader = Instaloader()
         init_db()
+        self.last_scrape_attempt = 0
+        self.scrape_cooldown = 300  # 5 minutes cooldown between scrape attempts
         
     def check_direct_scrape(self):
         """Check Instagram directly using instaloader"""
         try:
+            # Check if we need to wait before trying again
+            current_time = time.time()
+            if current_time - self.last_scrape_attempt < self.scrape_cooldown:
+                logging.info("Waiting for scrape cooldown period...")
+                return None
+                
+            self.last_scrape_attempt = current_time
+            logging.info("Attempting direct Instagram scrape...")
+            
             profile = Profile.from_username(self.loader.context, self.instagram_username)
             latest_post = next(profile.get_posts())
             
@@ -53,7 +65,13 @@ class InstagramMonitor:
             return post_data
             
         except Exception as e:
-            logging.error(f"Error in direct scraping: {str(e)}")
+            error_msg = str(e)
+            if "401 Unauthorized" in error_msg or "Please wait a few minutes" in error_msg:
+                logging.warning("Instagram rate limit hit, will try again later")
+                # Increase cooldown if we hit rate limit
+                self.scrape_cooldown = min(self.scrape_cooldown * 2, 1800)  # Max 30 minutes
+            else:
+                logging.error(f"Error in direct scraping: {error_msg}")
             return None
             
     def check_rss_feed(self):
