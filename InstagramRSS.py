@@ -1,13 +1,12 @@
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
-import feedparser
 import os
 from dotenv import load_dotenv
 import logging
 from datetime import datetime
 import traceback
-import re
+from instagram_monitor import InstagramMonitor
 from BlueSkyRSS import BlueSkyMonitor
 
 # Set up logging
@@ -55,397 +54,139 @@ def has_allowed_role():
         
         if not has_role:
             await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
-            return False
             
-        return True
-    return commands.check(predicate)
+        return has_role
+    return app_commands.check(predicate)
 
-class InstagramMonitor(commands.Cog):
+class InstagramMonitorCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.last_entry_id = None
-        self.rss_url = os.getenv('INSTAGRAM_RSS_URL')
-        self.discord_channel_id = int(os.getenv('DISCORD_CHANNEL_ID'))
+        self.instagram_monitor = InstagramMonitor()
+        self.bluesky_monitor = BlueSkyMonitor()
         self.check_feed.start()
-        logging.info("Instagram Monitor initialized")
-
-    @app_commands.command(name="testinstagram", description="Test the Instagram monitor by fetching the latest post")
-    @has_allowed_role()
-    async def test_instagram(self, interaction: discord.Interaction):
-        """Test the Instagram monitor by fetching the latest post"""
-        try:
-            await interaction.response.defer(ephemeral=True)
-            
-            logging.info("Fetching latest post for testing")
-            feed = feedparser.parse(self.rss_url)
-            
-            if not feed.entries:
-                await interaction.followup.send("❌ No entries found in Instagram RSS feed", ephemeral=True)
-                return
-                
-            latest_entry = feed.entries[0]
-            
-            # Clean up the description by removing HTML tags and formatting
-            description = latest_entry.description
-            if '<div>' in description:
-                # First, extract the text content from div tags
-                description = description.replace('<div>', '').replace('</div>', '\n')
-                
-                # Remove all HTML tags and their attributes
-                description = re.sub(r'<[^>]+>', '', description)
-                
-                # Remove any URLs that are not Instagram post links
-                lines = description.split('\n')
-                cleaned_lines = []
-                for line in lines:
-                    line = line.strip()
-                    if line and (not line.startswith('http') or 'instagram.com/p/' in line):
-                        cleaned_lines.append(line)
-                
-                # Remove duplicate text by keeping only unique lines
-                unique_lines = []
-                for line in cleaned_lines:
-                    if line and line not in unique_lines:
-                        unique_lines.append(line)
-                
-                description = '\n'.join(unique_lines)
-                description = description.strip()  # Remove extra whitespace
-            
-            # Create embed for the latest post
-            embed = discord.Embed(
-                description=description,
-                url=latest_entry.link,
-                timestamp=datetime.now(),
-                color=discord.Color.blue()
-            )
-            
-            # Add image if available
-            if 'media_content' in latest_entry:
-                embed.set_image(url=latest_entry.media_content[0]['url'])
-            
-            # Add footer with source
-            embed.set_footer(text="Instagram", icon_url="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Instagram_logo.svg/2560px-Instagram_logo.svg.png")
-            
-            await interaction.followup.send("✅ Instagram monitor is working correctly! Here's the latest post:", embed=embed, ephemeral=True)
-            logging.info(f"testinstagram command used by {interaction.user.name}")
-            
-        except Exception as e:
-            error_msg = f"Error in testinstagram command: {str(e)}\nTraceback: {traceback.format_exc()}"
-            logging.error(error_msg)
-            await interaction.followup.send(f"❌ An error occurred while testing Instagram monitor: {str(e)}", ephemeral=True)
-
-    async def send_latest_post(self):
-        """Send the latest post to Discord for testing"""
-        try:
-            # Check if BlueSky monitor is running
-            bluesky_cog = self.bot.get_cog('BlueSkyMonitor')
-            if not bluesky_cog:
-                logging.error("BlueSky monitor not initialized. Stopping Instagram monitor.")
-                self.check_feed.stop()
-                channel = self.bot.get_channel(self.discord_channel_id)
-                if channel:
-                    await channel.send("⚠️ Instagram monitoring stopped because BlueSky monitor failed to initialize.")
-                return
-
-            logging.info("Fetching latest post for initial display")
-            feed = feedparser.parse(self.rss_url)
-            
-            if not feed.entries:
-                logging.warning("No entries found in RSS feed for initial display")
-                return
-                
-            latest_entry = feed.entries[0]
-            channel = self.bot.get_channel(self.discord_channel_id)
-            
-            if not channel:
-                logging.error(f"Could not find channel with ID: {self.discord_channel_id}")
-                return
-            
-            # Clean up the description by removing HTML tags and formatting
-            description = latest_entry.description
-            if '<div>' in description:
-                # First, extract the text content from div tags
-                description = description.replace('<div>', '').replace('</div>', '\n')
-                
-                # Remove all HTML tags and their attributes
-                description = re.sub(r'<[^>]+>', '', description)
-                
-                # Remove any URLs that are not Instagram post links
-                lines = description.split('\n')
-                cleaned_lines = []
-                for line in lines:
-                    line = line.strip()
-                    if line and (not line.startswith('http') or 'instagram.com/p/' in line):
-                        cleaned_lines.append(line)
-                
-                # Remove duplicate text by keeping only unique lines
-                unique_lines = []
-                for line in cleaned_lines:
-                    if line and line not in unique_lines:
-                        unique_lines.append(line)
-                
-                description = '\n'.join(unique_lines)
-                description = description.strip()  # Remove extra whitespace
-            
-            # Create embed for the latest post
-            embed = discord.Embed(
-                description=description,
-                url=latest_entry.link,
-                timestamp=datetime.now(),
-                color=discord.Color.blue()
-            )
-            
-            # Add image if available
-            if 'media_content' in latest_entry:
-                embed.set_image(url=latest_entry.media_content[0]['url'])
-                logging.info(f"Added image to embed: {latest_entry.media_content[0]['url']}")
-            
-            # Add footer with source only
-            embed.set_footer(text="Instagram", icon_url="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Instagram_logo.svg/2560px-Instagram_logo.svg.png")
-            
-            await channel.send(f"Hey! Goose the Organization just posted something on [Instagram]({latest_entry.link})", embed=embed)
-            logging.info(f"Successfully sent initial post to channel {self.discord_channel_id}")
-            
-        except Exception as e:
-            error_msg = f"Error sending initial post: {str(e)}\nTraceback: {traceback.format_exc()}"
-            logging.error(error_msg)
-
+        self.last_check = None
+        
     def cog_unload(self):
         self.check_feed.cancel()
-
+        
     @tasks.loop(minutes=5)
     async def check_feed(self):
+        """Check for new Instagram posts every 5 minutes"""
         try:
-            # Check if BlueSky monitor is running
-            bluesky_cog = self.bot.get_cog('BlueSkyMonitor')
-            if not bluesky_cog:
-                logging.error("BlueSky monitor not initialized. Stopping Instagram monitor.")
-                self.check_feed.stop()
-                channel = self.bot.get_channel(self.discord_channel_id)
+            self.last_check = datetime.now()
+            post = self.instagram_monitor.get_latest_post()
+            
+            if post:
+                channel = self.bot.get_channel(int(os.getenv('DISCORD_CHANNEL_ID')))
                 if channel:
-                    await channel.send("⚠️ Instagram monitoring stopped because BlueSky monitor failed to initialize.")
-                return
-
-            logging.info(f"Checking RSS feed: {self.rss_url}")
-            feed = feedparser.parse(self.rss_url)
-            
-            # Check if the feed is valid
-            if feed.bozo:  # Feed parsing error
-                error_msg = f"Invalid RSS feed: {feed.bozo_exception}"
-                logging.error(error_msg)
-                channel = self.bot.get_channel(self.discord_channel_id)
-                if channel:
-                    await channel.send(f"RSS Feed Error: The feed URL appears to be invalid or expired. Please check the URL: {self.rss_url}")
-                return
-            
-            # Log feed details
-            logging.info(f"Feed title: {feed.feed.get('title', 'No title')}")
-            logging.info(f"Feed description: {feed.feed.get('description', 'No description')}")
-            logging.info(f"Feed link: {feed.feed.get('link', 'No link')}")
-            
-            if not feed.entries:
-                logging.warning("No entries found in RSS feed")
-                return
-                
-            latest_entry = feed.entries[0]
-            logging.info(f"Latest entry ID: {latest_entry.id}")
-            logging.info(f"Latest entry title: {latest_entry.get('title', 'No title')}")
-            logging.info(f"Latest entry link: {latest_entry.get('link', 'No link')}")
-            logging.info(f"Last known entry ID: {self.last_entry_id}")
-            
-            if self.last_entry_id is None:
-                self.last_entry_id = latest_entry.id
-                logging.info("Initial post ID set")
-            elif latest_entry.id != self.last_entry_id:
-                logging.info("New post detected, preparing to send to Discord")
-                self.last_entry_id = latest_entry.id
-                channel = self.bot.get_channel(self.discord_channel_id)
-                
-                if not channel:
-                    logging.error(f"Could not find channel with ID: {self.discord_channel_id}")
-                    return
-                
-                # Clean up the description by removing HTML tags and formatting
-                description = latest_entry.description
-                if '<div>' in description:
-                    # First, extract the text content from div tags
-                    description = description.replace('<div>', '').replace('</div>', '\n')
+                    embed = discord.Embed(
+                        title="Hey! Goose the Organization just posted something on Instagram",
+                        description=f"[Instagram]({post['url']})\n\n{post['caption']}",
+                        color=discord.Color.blue()
+                    )
                     
-                    # Remove all HTML tags and their attributes
-                    description = re.sub(r'<[^>]+>', '', description)
-                    
-                    # Remove any URLs that are not Instagram post links
-                    lines = description.split('\n')
-                    cleaned_lines = []
-                    for line in lines:
-                        line = line.strip()
-                        if line and (not line.startswith('http') or 'instagram.com/p/' in line):
-                            cleaned_lines.append(line)
-                    
-                    # Remove duplicate text by keeping only unique lines
-                    unique_lines = []
-                    for line in cleaned_lines:
-                        if line and line not in unique_lines:
-                            unique_lines.append(line)
-                    
-                    description = '\n'.join(unique_lines)
-                    description = description.strip()  # Remove extra whitespace
-                
-                # Create embed for the new post
-                embed = discord.Embed(
-                    description=description,
-                    url=latest_entry.link,
-                    timestamp=datetime.now(),
-                    color=discord.Color.green()
-                )
-                
-                # Add image if available
-                if 'media_content' in latest_entry:
-                    embed.set_image(url=latest_entry.media_content[0]['url'])
-                    logging.info(f"Added image to embed: {latest_entry.media_content[0]['url']}")
-                
-                # Add footer with source only
-                embed.set_footer(text="Instagram", icon_url="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Instagram_logo.svg/2560px-Instagram_logo.svg.png")
-                
-                await channel.send(f"Hey! Goose the Organization just posted something on [Instagram]({latest_entry.link})", embed=embed)
-                logging.info(f"Successfully sent new post to channel {self.discord_channel_id}")
-            else:
-                logging.info("No new posts detected")
+                    if post['thumbnail_url']:
+                        embed.set_image(url=post['thumbnail_url'])
+                        
+                    await channel.send(embed=embed)
                     
         except Exception as e:
-            error_msg = f"Error checking feed: {str(e)}\nTraceback: {traceback.format_exc()}"
-            logging.error(error_msg)
-            # Try to notify in Discord if possible
-            try:
-                channel = self.bot.get_channel(self.discord_channel_id)
-                if channel:
-                    await channel.send(f"⚠️ Error checking Instagram feed: {str(e)}")
-                else:
-                    logging.error(f"Could not find channel with ID: {self.discord_channel_id}")
-            except Exception as e:
-                logging.error(f"Failed to send error notification to Discord channel: {str(e)}")
-
+            logging.error(f"Error in check_feed: {str(e)}")
+            logging.error(traceback.format_exc())
+            
     @check_feed.before_loop
     async def before_check_feed(self):
         await self.bot.wait_until_ready()
+        
+    @app_commands.command(name="testinstagram", description="Test the Instagram monitor by fetching the latest post")
+    @has_allowed_role()
+    async def test_instagram(self, interaction: discord.Interaction):
+        """Test command to fetch the latest Instagram post"""
+        await interaction.response.defer()
+        
+        try:
+            post = self.instagram_monitor.get_latest_post()
+            
+            if post:
+                embed = discord.Embed(
+                    title="Hey! Goose the Organization just posted something on Instagram",
+                    description=f"[Instagram]({post['url']})\n\n{post['caption']}",
+                    color=discord.Color.blue()
+                )
+                
+                if post['thumbnail_url']:
+                    embed.set_image(url=post['thumbnail_url'])
+                    
+                await interaction.followup.send(embed=embed)
+            else:
+                await interaction.followup.send("No new posts found.")
+                
+        except Exception as e:
+            logging.error(f"Error in test_instagram: {str(e)}")
+            await interaction.followup.send(f"❌ Error: {str(e)}")
+            
+    @app_commands.command(name="history", description="Show recent Instagram posts")
+    @has_allowed_role()
+    async def show_history(self, interaction: discord.Interaction, limit: int = 5):
+        """Show recent Instagram posts"""
+        await interaction.response.defer()
+        
+        try:
+            posts = self.instagram_monitor.get_post_history(limit)
+            
+            if posts:
+                embed = discord.Embed(
+                    title=f"Recent Instagram Posts (Last {len(posts)})",
+                    color=discord.Color.blue()
+                )
+                
+                for post in posts:
+                    embed.add_field(
+                        name=f"Post from {post[1]}",
+                        value=f"[View Post]({post[5]})\nSource: {post[9]}",
+                        inline=False
+                    )
+                    
+                await interaction.followup.send(embed=embed)
+            else:
+                await interaction.followup.send("No posts found in history.")
+                
+        except Exception as e:
+            logging.error(f"Error in show_history: {str(e)}")
+            await interaction.followup.send(f"❌ Error: {str(e)}")
 
 @bot.event
 async def on_ready():
-    logging.info(f'Bot is ready: {bot.user.name}')
+    """Bot is ready and connected to Discord"""
+    logging.info(f"Bot is ready! Logged in as {bot.user.name}")
     
-    # First try to initialize BlueSky monitor
+    # Sync commands with Discord
     try:
-        from BlueSkyRSS import setup as setup_bluesky
-        await setup_bluesky(bot)
-        bluesky_cog = bot.get_cog('BlueSkyMonitor')
-        if not bluesky_cog or not bluesky_cog.initialized:
-            logging.error("BlueSky monitor failed to initialize properly")
-            return
-        logging.info("BlueSky Monitor initialized successfully")
-    except Exception as e:
-        logging.error(f"Failed to initialize BlueSky Monitor: {str(e)}")
-        # Don't initialize Instagram monitor if BlueSky fails
-        return
-    
-    # Only initialize Instagram monitor if BlueSky monitor is running
-    instagram_monitor = InstagramMonitor(bot)
-    await bot.add_cog(instagram_monitor)
-    
-    # Send initial post after cog is added
-    await instagram_monitor.send_latest_post()
-    
-    try:
-        # Clear existing commands
-        bot.tree.clear_commands(guild=None)
-        
-        # Register all commands from cogs
-        for cog in bot.cogs.values():
-            for command in cog.get_commands():
-                logging.info(f"Registering command from cog {cog.__class__.__name__}: {command.name}")
-                bot.tree.add_command(command)
-        
-        # Register standalone commands
-        for command in bot.tree.get_commands():
-            logging.info(f"Registering standalone command: {command.name}")
-            bot.tree.add_command(command)
-        
-        # Sync commands globally
         synced = await bot.tree.sync()
         logging.info(f"Synced {len(synced)} command(s)")
-        
-        # Log all registered commands
-        for command in bot.tree.get_commands():
-            logging.info(f"Registered command: {command.name}")
-            
-        # Force sync commands to ensure they're available
-        await bot.tree.sync()
-        logging.info("Commands synced successfully")
     except Exception as e:
-        logging.error(f"Failed to sync commands: {str(e)}\nTraceback: {traceback.format_exc()}")
+        logging.error(f"Error syncing commands: {str(e)}")
+        
+    # Add the Instagram monitor cog
+    await bot.add_cog(InstagramMonitorCog(bot))
 
-@bot.tree.command(name="statusflodown", description="Check the bot's status and last Instagram check")
+@bot.tree.command(name="status", description="Check the bot's status and last Instagram check")
 @has_allowed_role()
 async def status(interaction: discord.Interaction):
     """Check the bot's status"""
-    try:
-        # Get the InstagramMonitor cog
-        instagram_cog = bot.get_cog('InstagramMonitor')
-        last_check = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cog = bot.get_cog('InstagramMonitorCog')
+    if cog:
+        last_check = cog.last_check
+        if last_check:
+            time_diff = datetime.now() - last_check
+            minutes = time_diff.total_seconds() / 60
+            status_msg = f"✅ Bot is running\nLast check: {minutes:.1f} minutes ago"
+        else:
+            status_msg = "✅ Bot is running\nNo checks performed yet"
+    else:
+        status_msg = "❌ Instagram monitor not initialized"
         
-        embed = discord.Embed(
-            title="Bot Status",
-            description="Instagram Monitor Bot is running",
-            color=discord.Color.green(),
-            timestamp=datetime.now()
-        )
-        embed.add_field(name="Last Check", value=last_check)
-        embed.add_field(name="RSS URL", value=instagram_cog.rss_url if instagram_cog else "Not initialized")
-        embed.add_field(name="Channel ID", value=instagram_cog.discord_channel_id if instagram_cog else "Not initialized")
-        embed.add_field(name="Last Post ID", value=instagram_cog.last_entry_id if instagram_cog else "Not initialized")
-        
-        await interaction.response.send_message(embed=embed)
-        logging.info(f"statusflodown command used by {interaction.user.name}")
-    except Exception as e:
-        error_msg = f"Error in statusflodown command: {str(e)}\nTraceback: {traceback.format_exc()}"
-        logging.error(error_msg)
-        await interaction.response.send_message("❌ An error occurred while checking the status.", ephemeral=True)
-
-@bot.tree.command(name="inviteflodown", description="Get the bot's invite link with proper permissions")
-@has_allowed_role()
-async def invite(interaction: discord.Interaction):
-    """Get the bot's invite link"""
-    try:
-        # Calculate permissions integer
-        permissions = discord.Permissions(
-            send_messages=True,
-            embed_links=True,
-            view_channel=True,
-            read_message_history=True
-        )
-        
-        # Generate invite link
-        invite_url = discord.utils.oauth_url(
-            bot.user.id,
-            permissions=permissions,
-            scopes=('bot', 'applications.commands')
-        )
-        
-        embed = discord.Embed(
-            title="Bot Invite Link",
-            description="Click the link below to invite the bot with proper permissions:",
-            color=discord.Color.blue(),
-            timestamp=datetime.now()
-        )
-        embed.add_field(name="Invite Link", value=f"[Click here to invite]({invite_url})")
-        embed.add_field(name="Required Permissions", value="• Send Messages\n• Embed Links\n• View Channel\n• Read Message History")
-        
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-        logging.info(f"Invite link generated for {interaction.user.name}")
-    except Exception as e:
-        error_msg = f"Error generating invite link: {str(e)}\nTraceback: {traceback.format_exc()}"
-        logging.error(error_msg)
-        await interaction.response.send_message("❌ An error occurred while generating the invite link.", ephemeral=True)
+    await interaction.response.send_message(status_msg)
 
 # Run the bot
-if __name__ == "__main__":
-    bot.run(os.getenv('DISCORD_TOKEN'))
+bot.run(os.getenv('DISCORD_TOKEN'))

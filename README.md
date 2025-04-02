@@ -22,7 +22,7 @@ A Discord bot that monitors both Instagram and BlueSky feeds and posts updates t
    Required environment variables in `.env` file:
    - `DISCORD_TOKEN`: Your bot's token
    - `DISCORD_CHANNEL_ID`: The channel ID where posts will be sent
-   - `INSTAGRAM_RSS_URL`: Your Instagram RSS feed URL
+   - `INSTAGRAM_RSS_URL`: Your Instagram RSS feed URL (should end with .xml)
    - `BLUESKY_HANDLE`: The BlueSky handle to monitor (e.g., username.bsky.social)
    - `BLUESKY_LOGIN_EMAIL`: Your BlueSky account email for authentication
    - `BLUESKY_LOGIN_PASSWORD`: Your BlueSky account password
@@ -40,6 +40,16 @@ A Discord bot that monitors both Instagram and BlueSky feeds and posts updates t
    - The bot requires specific roles to use commands
    - Add the role IDs to the `ALLOWED_ROLE_IDS` environment variable
    - Users without the required roles will receive an ephemeral error message
+
+5. **Instagram RSS Feed Setup**
+   - Go to [RSS.app](https://rss.app) or [Pikaso.me](https://pikaso.me)
+   - Create a new feed for your Instagram profile
+   - Make sure the Instagram profile is public
+   - Copy the generated RSS feed URL (should end with .xml)
+   - Note: RSS feed URLs typically expire after 14-30 days
+   - Set up a reminder to regenerate the feed URL before it expires
+   - Add the new URL to your `.env` file when regenerating
+   - Example RSS feed URL format: `https://rss.app/feeds/[YOUR-FEED-ID].xml`
 
 ## Deployment
 
@@ -117,6 +127,19 @@ A Discord bot that monitors both Instagram and BlueSky feeds and posts updates t
    - Verify the RSS feed URL is valid and accessible
    - Check if the RSS service (RSS.app/Pikaso.me) is working
    - Try regenerating the RSS feed URL
+   - Common RSS feed errors:
+     - "Invalid RSS feed": The feed URL has expired or is invalid
+     - "No entries found": The feed is empty or the profile is private
+     - "Feed parsing error": The feed format is incorrect
+   - Solution steps:
+     1. Go to RSS.app or Pikaso.me
+     2. Create a new feed for your Instagram profile
+     3. Copy the new feed URL (should end with .xml)
+     4. Update the `INSTAGRAM_RSS_URL` in your `.env` file
+     5. Restart the bot
+   - Verify the feed URL format:
+     - Correct: `https://rss.app/feeds/[YOUR-FEED-ID].xml`
+     - Incorrect: `https://rss.app/feed/[YOUR-FEED-ID]`
 
 2. **BlueSky Authentication Issues**
    - Verify your BlueSky credentials are correct
@@ -143,3 +166,5 @@ A Discord bot that monitors both Instagram and BlueSky feeds and posts updates t
 - The bot will stop Instagram monitoring if BlueSky monitoring fails to initialize
 - All commands require specific role permissions to use
 - Logs are stored in `bot.log` for debugging
+- RSS feed URLs typically expire after 14-30 days - set up a reminder to regenerate them
+- The bot will automatically handle HTML formatting and clean up post descriptions
