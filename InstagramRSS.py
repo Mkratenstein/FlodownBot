@@ -19,28 +19,31 @@ logging.basicConfig(
     ]
 )
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from Instagram.env
+load_dotenv('Instagram.env')
 
-# Verify environment variables
-required_vars = ['DISCORD_TOKEN', 'DISCORD_CHANNEL_ID', 'INSTAGRAM_RSS_URL', 'APPLICATION_ID', 'ALLOWED_ROLE_IDS']
-missing_vars = [var for var in required_vars if not os.getenv(var)]
-if missing_vars:
-    logging.error(f"Missing required environment variables: {', '.join(missing_vars)}")
-    raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
+# Get environment variables
+DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
+DISCORD_CHANNEL_ID = int(os.getenv('DISCORD_CHANNEL_ID', 0))
+INSTAGRAM_RSS_URL = os.getenv('INSTAGRAM_RSS_URL')
+BLUESKY_HANDLE = os.getenv('BLUESKY_HANDLE')
+BLUESKY_LOGIN_EMAIL = os.getenv('BLUESKY_LOGIN_EMAIL')
+BLUESKY_LOGIN_PASSWORD = os.getenv('BLUESKY_LOGIN_PASSWORD')
+APPLICATION_ID = int(os.getenv('APPLICATION_ID', 0))
+ALLOWED_ROLE_IDS = [int(role_id) for role_id in os.getenv('ALLOWED_ROLE_IDS', '').split(',') if role_id]
+INSTAGRAM_USERNAME = os.getenv('INSTAGRAM_USERNAME')
+INSTAGRAM_PASSWORD = os.getenv('INSTAGRAM_PASSWORD')
 
-# Parse allowed role IDs
-ALLOWED_ROLE_IDS = [int(role_id.strip()) for role_id in os.getenv('ALLOWED_ROLE_IDS').split(',')]
+# Log environment variable status
 logging.info(f"Allowed role IDs: {ALLOWED_ROLE_IDS}")
-
-logging.info("Environment variables loaded successfully")
-logging.info(f"Channel ID: {os.getenv('DISCORD_CHANNEL_ID')}")
-logging.info(f"RSS URL: {os.getenv('INSTAGRAM_RSS_URL')}")
+logging.info(f"Environment variables loaded successfully")
+logging.info(f"Channel ID: {DISCORD_CHANNEL_ID}")
+logging.info(f"RSS URL: {INSTAGRAM_RSS_URL}")
 
 # Bot setup
 intents = discord.Intents.default()
 intents.message_content = True  # Enable message content intent
-bot = commands.Bot(command_prefix='!', intents=intents, application_id=os.getenv('APPLICATION_ID'))
+bot = commands.Bot(command_prefix='!', intents=intents, application_id=APPLICATION_ID)
 
 def has_allowed_role():
     """Check if the user has any of the allowed roles"""
@@ -83,7 +86,7 @@ class InstagramMonitorCog(commands.Cog):
             
             if post:
                 logging.info(f"New post found! Post ID: {post['post_id']}")
-                channel = self.bot.get_channel(int(os.getenv('DISCORD_CHANNEL_ID')))
+                channel = self.bot.get_channel(DISCORD_CHANNEL_ID)
                 if channel:
                     logging.info(f"Posting to channel: {channel.name} (ID: {channel.id})")
                     embed = discord.Embed(
@@ -98,7 +101,7 @@ class InstagramMonitorCog(commands.Cog):
                     await channel.send(embed=embed)
                     logging.info("Post successfully sent to Discord")
                 else:
-                    logging.error(f"Could not find channel with ID: {os.getenv('DISCORD_CHANNEL_ID')}")
+                    logging.error(f"Could not find channel with ID: {DISCORD_CHANNEL_ID}")
             else:
                 logging.info("No new posts found")
                     
@@ -215,4 +218,4 @@ async def status(interaction: discord.Interaction):
     await interaction.response.send_message(status_msg)
 
 # Run the bot
-bot.run(os.getenv('DISCORD_TOKEN'))
+bot.run(DISCORD_TOKEN)
