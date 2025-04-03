@@ -11,6 +11,8 @@ from requests.exceptions import RequestException, ConnectionError, Timeout, HTTP
 from json.decoder import JSONDecodeError
 from urllib.parse import urlparse
 import random
+import hashlib
+import hmac
 
 # Set up logging
 logging.basicConfig(
@@ -39,17 +41,23 @@ class InstagramMonitor:
         
         # Set up session headers
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': '*/*',
-            'Accept-Language': 'en-US,en;q=0.5',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
             'Accept-Encoding': 'gzip, deflate, br',
             'X-IG-App-ID': '936619743392459',
+            'X-ASBD-ID': '198387',
+            'X-IG-WWW-Claim': '0',
             'X-Requested-With': 'XMLHttpRequest',
             'Connection': 'keep-alive',
             'Referer': 'https://www.instagram.com/',
             'Sec-Fetch-Dest': 'empty',
             'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Site': 'same-origin'
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
+            'Upgrade-Insecure-Requests': '1'
         })
         
     def _get_csrf_token(self):
@@ -63,6 +71,18 @@ class InstagramMonitor:
             logging.error(f"Error getting CSRF token: {str(e)}")
             return None
             
+    def _generate_device_id(self):
+        """Generate a device ID for Instagram"""
+        return f"android-{hashlib.md5(str(time.time()).encode()).hexdigest()[:16]}"
+        
+    def _generate_signature(self, data):
+        """Generate signature for Instagram API requests"""
+        return hmac.new(
+            b'9193488027538fd3450b83b7d05286d4',
+            data.encode(),
+            hashlib.sha256
+        ).hexdigest()
+        
     def _login(self):
         """Login to Instagram"""
         try:
@@ -84,6 +104,9 @@ class InstagramMonitor:
             # First, get the login page to get additional cookies
             self.session.get('https://www.instagram.com/accounts/login/')
             
+            # Generate device ID
+            device_id = self._generate_device_id()
+            
             # Prepare login data
             login_data = {
                 'username': self.instagram_username,
@@ -91,8 +114,13 @@ class InstagramMonitor:
                 'queryParams': '{}',
                 'optIntoOneTap': 'false',
                 'stopDeletionNonce': '',
-                'trustedDeviceRecords': '{}'
+                'trustedDeviceRecords': '{}',
+                'device_id': device_id
             }
+            
+            # Add signature
+            signature = self._generate_signature(json.dumps(login_data))
+            login_data['signature'] = signature
             
             # Perform login
             login_url = 'https://www.instagram.com/api/v1/web/accounts/login/ajax/'
@@ -103,6 +131,12 @@ class InstagramMonitor:
                 if data.get('authenticated'):
                     logging.info("Successfully logged in to Instagram")
                     return True
+                elif data.get('spam'):
+                    logging.error("Instagram detected suspicious activity. Please try again later.")
+                    return False
+                elif data.get('checkpoint_required'):
+                    logging.error("Instagram requires additional verification. Please log in manually first.")
+                    return False
                     
             logging.error(f"Login failed: {response.text}")
             return False
