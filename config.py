@@ -9,7 +9,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('bot.log'),
+        logging.FileHandler('bluesky_monitor.log'),
         logging.StreamHandler()
     ]
 )
@@ -17,8 +17,8 @@ logging.basicConfig(
 # Load environment variables
 # Try both local and container paths
 env_paths = [
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Instagram.env'),
-    '/app/Instagram.env'
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'),
+    '/app/.env'
 ]
 
 env_loaded = False
@@ -34,7 +34,7 @@ if not env_loaded:
 
 # Verify environment variables
 required_vars = [
-    'DISCORD_TOKEN', 'DISCORD_CHANNEL_ID', 'INSTAGRAM_RSS_URL',
+    'DISCORD_TOKEN', 'DISCORD_CHANNEL_ID',
     'BLUESKY_HANDLE', 'BLUESKY_LOGIN_EMAIL', 'BLUESKY_LOGIN_PASSWORD',
     'APPLICATION_ID', 'ALLOWED_ROLE_IDS'
 ]

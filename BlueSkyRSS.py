@@ -9,6 +9,7 @@ from atproto import Client, models
 import asyncio
 import requests
 from dotenv import load_dotenv
+from config import has_allowed_role, ALLOWED_ROLE_IDS
 
 # Set up logging
 logging.basicConfig(
@@ -30,7 +31,6 @@ DISCORD_CHANNEL_ID = os.getenv('DISCORD_CHANNEL_ID')
 BLUESKY_HANDLE = os.getenv('BLUESKY_HANDLE')
 BLUESKY_LOGIN_EMAIL = os.getenv('BLUESKY_LOGIN_EMAIL')
 BLUESKY_LOGIN_PASSWORD = os.getenv('BLUESKY_LOGIN_PASSWORD')
-ALLOWED_ROLE_IDS = os.getenv('ALLOWED_ROLE_IDS')
 
 # Validate required environment variables
 required_vars = {
@@ -38,8 +38,7 @@ required_vars = {
     'DISCORD_CHANNEL_ID': DISCORD_CHANNEL_ID,
     'BLUESKY_HANDLE': BLUESKY_HANDLE,
     'BLUESKY_LOGIN_EMAIL': BLUESKY_LOGIN_EMAIL,
-    'BLUESKY_LOGIN_PASSWORD': BLUESKY_LOGIN_PASSWORD,
-    'ALLOWED_ROLE_IDS': ALLOWED_ROLE_IDS
+    'BLUESKY_LOGIN_PASSWORD': BLUESKY_LOGIN_PASSWORD
 }
 
 missing_vars = [var for var, value in required_vars.items() if not value]
@@ -47,28 +46,8 @@ if missing_vars:
     logging.error(f"Missing required environment variables: {', '.join(missing_vars)}")
     raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
-# Parse allowed role IDs
-ALLOWED_ROLE_IDS = [int(role_id.strip()) for role_id in ALLOWED_ROLE_IDS.split(',')]
-logging.info(f"Allowed role IDs: {ALLOWED_ROLE_IDS}")
 logging.info(f"Channel ID: {DISCORD_CHANNEL_ID}")
 logging.info(f"BlueSky Handle: {BLUESKY_HANDLE}")
-
-def has_allowed_role():
-    """Check if the user has any of the allowed roles"""
-    async def predicate(interaction: discord.Interaction) -> bool:
-        if not interaction.user.roles:
-            await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
-            return False
-            
-        user_roles = [role.id for role in interaction.user.roles]
-        has_role = any(role_id in user_roles for role_id in ALLOWED_ROLE_IDS)
-        
-        if not has_role:
-            await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
-            return False
-            
-        return True
-    return commands.check(predicate)
 
 class BlueSkyMonitor(commands.Cog):
     def __init__(self, bot):
@@ -87,8 +66,10 @@ class BlueSkyMonitor(commands.Cog):
             self.client = Client()
             # Create session with proper model
             session = self.client.com.atproto.server.create_session(
-                identifier=self.bluesky_email,
-                password=self.bluesky_password
+                data=models.ComAtprotoServerCreateSession.Data(
+                    identifier=self.bluesky_email,
+                    password=self.bluesky_password
+                )
             )
             logging.info("Successfully initialized and logged into BlueSky client")
         except Exception as e:
@@ -122,16 +103,20 @@ class BlueSkyMonitor(commands.Cog):
                 logging.info("Reinitializing BlueSky client...")
                 self.client = Client()
                 session = self.client.com.atproto.server.create_session(
-                    identifier=self.bluesky_email,
-                    password=self.bluesky_password
+                    data=models.ComAtprotoServerCreateSession.Data(
+                        identifier=self.bluesky_email,
+                        password=self.bluesky_password
+                    )
                 )
                 logging.info("Successfully logged in to BlueSky")
                     
             # Get the latest posts using the correct method
             logging.info("Fetching latest posts from BlueSky...")
             response = self.client.app.bsky.feed.get_author_feed(
-                actor=self.bluesky_handle,
-                limit=1
+                params=models.AppBskyFeedGetAuthorFeed.Params(
+                    actor=self.bluesky_handle,
+                    limit=1
+                )
             )
             if not response or not response.feed:
                 logging.warning("No posts found in BlueSky feed")
@@ -200,13 +185,17 @@ class BlueSkyMonitor(commands.Cog):
                 logging.info("Reinitializing BlueSky client for test command...")
                 self.client = Client()
                 session = self.client.com.atproto.server.create_session(
-                    identifier=self.bluesky_email,
-                    password=self.bluesky_password
+                    data=models.ComAtprotoServerCreateSession.Data(
+                        identifier=self.bluesky_email,
+                        password=self.bluesky_password
+                    )
                 )
                 
             response = self.client.app.bsky.feed.get_author_feed(
-                actor=self.bluesky_handle,
-                limit=1
+                params=models.AppBskyFeedGetAuthorFeed.Params(
+                    actor=self.bluesky_handle,
+                    limit=1
+                )
             )
             if not response or not response.feed:
                 logging.warning("No posts found during test command")
