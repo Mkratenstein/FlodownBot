@@ -31,7 +31,15 @@ class InstagramMonitor:
         self.scrape_cooldown = 300  # 5 minutes cooldown between scrape attempts
         self.max_retries = 3
         self.retry_delay = 5  # seconds between retries
+        self.use_api = False  # Default to not using API
         init_db()
+        
+        # Check if we should try using the API
+        if self.instagram_username and self.instagram_password:
+            self.use_api = True
+            logging.info("Instagram credentials found, will attempt API access")
+        else:
+            logging.info("No Instagram credentials found, will use RSS feed only")
         
     def _login(self):
         """Login to Instagram using instaloader"""
@@ -60,6 +68,11 @@ class InstagramMonitor:
             
     def check_direct_scrape(self):
         """Check Instagram using instaloader"""
+        # Skip API check if we're not using it
+        if not self.use_api:
+            logging.info("API access disabled, skipping direct scrape")
+            return None
+            
         try:
             # Check if we need to wait before trying again
             current_time = time.time()
@@ -125,7 +138,13 @@ class InstagramMonitor:
     def check_rss_feed(self):
         """Check Instagram RSS feed for new posts"""
         try:
+            if not self.rss_url:
+                logging.error("RSS URL not configured")
+                return None
+                
+            logging.info(f"Checking RSS feed: {self.rss_url}")
             feed = feedparser.parse(self.rss_url)
+            
             if not feed.entries:
                 logging.warning("No entries found in RSS feed")
                 return None
@@ -140,6 +159,7 @@ class InstagramMonitor:
             # Check if this is a new post
             latest_known_id = get_latest_post_id()
             if latest_known_id and post_id == latest_known_id:
+                logging.info("No new posts found in RSS feed")
                 return None
                 
             # Create post data from RSS entry
@@ -154,6 +174,7 @@ class InstagramMonitor:
                 'source': 'rss'
             }
             
+            logging.info(f"New post found in RSS feed: {post_data['url']}")
             save_post(post_data)
             return post_data
             
@@ -162,14 +183,17 @@ class InstagramMonitor:
             return None
             
     def get_latest_post(self):
-        """Get the latest post using API first, then RSS as fallback"""
-        # Try API first
-        post = self.check_direct_scrape()
+        """Get the latest post using RSS feed first, then API as fallback"""
+        # Try RSS first
+        post = self.check_rss_feed()
         if post:
             return post
             
-        # If API fails, try RSS as fallback
-        return self.check_rss_feed()
+        # If RSS fails, try API as fallback (if enabled)
+        if self.use_api:
+            return self.check_direct_scrape()
+            
+        return None
         
     def get_post_history(self, limit=10):
         """Get post history from database"""
