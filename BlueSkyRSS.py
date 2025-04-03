@@ -72,6 +72,7 @@ def has_allowed_role():
 
 class BlueSkyMonitor(commands.Cog):
     def __init__(self, bot):
+        logging.info("Initializing BlueSky Monitor Cog...")
         self.bot = bot
         self.discord_channel_id = int(DISCORD_CHANNEL_ID)
         self.bluesky_handle = BLUESKY_HANDLE
@@ -79,11 +80,34 @@ class BlueSkyMonitor(commands.Cog):
         self.bluesky_password = BLUESKY_LOGIN_PASSWORD
         self.client = None
         self.last_post_uri = None
-        self.check_feed.start()
-        logging.info("BlueSky Monitor Cog initialized successfully")
+        
+        # Initialize BlueSky client
+        try:
+            logging.info("Attempting to initialize BlueSky client...")
+            self.client = Client()
+            self.client.login(self.bluesky_email, self.bluesky_password)
+            logging.info("Successfully initialized and logged into BlueSky client")
+        except Exception as e:
+            logging.error(f"Failed to initialize BlueSky client: {str(e)}")
+            logging.error(traceback.format_exc())
+        
+        # Start the feed check task
+        try:
+            self.check_feed.start()
+            logging.info("BlueSky feed check task started successfully")
+        except Exception as e:
+            logging.error(f"Failed to start feed check task: {str(e)}")
+            logging.error(traceback.format_exc())
+            
+        logging.info("BlueSky Monitor Cog initialization completed")
         
     def cog_unload(self):
-        self.check_feed.cancel()
+        logging.info("Unloading BlueSky Monitor Cog...")
+        try:
+            self.check_feed.cancel()
+            logging.info("Feed check task cancelled successfully")
+        except Exception as e:
+            logging.error(f"Error cancelling feed check task: {str(e)}")
         logging.info("BlueSky Monitor Cog unloaded")
         
     @tasks.loop(minutes=5)
@@ -91,6 +115,7 @@ class BlueSkyMonitor(commands.Cog):
         try:
             logging.info(f"Checking BlueSky feed for {self.bluesky_handle}")
             if not self.client:
+                logging.info("Reinitializing BlueSky client...")
                 self.client = Client()
                 try:
                     self.client.login(self.bluesky_email, self.bluesky_password)
@@ -100,6 +125,7 @@ class BlueSkyMonitor(commands.Cog):
                     return
                     
             # Get the latest posts
+            logging.info("Fetching latest posts from BlueSky...")
             response = self.client.get_author_feed(self.bluesky_handle, limit=1)
             if not response or not response.feed:
                 logging.warning("No posts found in BlueSky feed")
@@ -107,6 +133,7 @@ class BlueSkyMonitor(commands.Cog):
                 
             latest_post = response.feed[0]
             post_uri = latest_post.post.uri
+            logging.info(f"Latest post URI: {post_uri}")
             
             if not self.last_post_uri:
                 self.last_post_uri = post_uri
@@ -118,6 +145,8 @@ class BlueSkyMonitor(commands.Cog):
                 # Process and send the new post
                 await self.process_and_send_post(latest_post)
                 self.last_post_uri = post_uri
+            else:
+                logging.info("No new posts found")
                 
         except Exception as e:
             logging.error(f"Error checking BlueSky feed: {str(e)}")
@@ -125,11 +154,13 @@ class BlueSkyMonitor(commands.Cog):
             
     @check_feed.before_loop
     async def before_check_feed(self):
+        logging.info("Waiting for bot to be ready before starting feed check...")
         await self.bot.wait_until_ready()
-        logging.info("BlueSky feed check task started")
+        logging.info("Bot is ready, BlueSky feed check task starting")
         
     async def process_and_send_post(self, post):
         try:
+            logging.info("Processing new BlueSky post...")
             channel = self.bot.get_channel(self.discord_channel_id)
             if not channel:
                 logging.error(f"Could not find channel with ID {self.discord_channel_id}")
@@ -145,7 +176,7 @@ class BlueSkyMonitor(commands.Cog):
             
             # Send the message
             await channel.send(message)
-            logging.info(f"Successfully sent BlueSky post to Discord channel")
+            logging.info(f"Successfully sent BlueSky post to Discord channel {self.discord_channel_id}")
             
         except Exception as e:
             logging.error(f"Error processing and sending BlueSky post: {str(e)}")
@@ -155,21 +186,25 @@ class BlueSkyMonitor(commands.Cog):
     @has_allowed_role()
     async def test_bluesky(self, interaction: discord.Interaction):
         try:
+            logging.info(f"Test command triggered by user {interaction.user.name}")
             await interaction.response.defer()
             logging.info("Testing BlueSky monitor...")
             
             if not self.client:
+                logging.info("Reinitializing BlueSky client for test command...")
                 self.client = Client()
                 self.client.login(self.bluesky_email, self.bluesky_password)
                 
             response = self.client.get_author_feed(self.bluesky_handle, limit=1)
             if not response or not response.feed:
+                logging.warning("No posts found during test command")
                 await interaction.followup.send("No posts found in BlueSky feed.")
                 return
                 
             latest_post = response.feed[0]
             await self.process_and_send_post(latest_post)
             await interaction.followup.send("Successfully fetched and posted the latest BlueSky post!")
+            logging.info("Test command completed successfully")
             
         except Exception as e:
             logging.error(f"Error in test_bluesky command: {str(e)}")
@@ -177,6 +212,12 @@ class BlueSkyMonitor(commands.Cog):
             await interaction.followup.send(f"An error occurred: {str(e)}")
 
 async def setup(bot):
-    # Add the cog
-    await bot.add_cog(BlueSkyMonitor(bot))
-    logging.info("BlueSky Monitor Cog setup completed") 
+    logging.info("Setting up BlueSky Monitor Cog...")
+    try:
+        # Add the cog
+        await bot.add_cog(BlueSkyMonitor(bot))
+        logging.info("BlueSky Monitor Cog setup completed successfully")
+    except Exception as e:
+        logging.error(f"Error setting up BlueSky Monitor Cog: {str(e)}")
+        logging.error(traceback.format_exc())
+        raise 
