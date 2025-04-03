@@ -1,1 +1,1 @@
-web: python InstagramRSS.py 
+web: python BlueSkyRSS.py 
