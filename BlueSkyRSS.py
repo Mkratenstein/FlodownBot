@@ -5,7 +5,7 @@ import os
 import logging
 from datetime import datetime
 import traceback
-from atproto import Client
+from atproto import Client, models
 import asyncio
 import requests
 from dotenv import load_dotenv
@@ -85,7 +85,11 @@ class BlueSkyMonitor(commands.Cog):
         try:
             logging.info("Attempting to initialize BlueSky client...")
             self.client = Client()
-            self.client.login(self.bluesky_email, self.bluesky_password)
+            # Create session with proper model
+            session = self.client.com.atproto.server.create_session(
+                identifier=self.bluesky_email,
+                password=self.bluesky_password
+            )
             logging.info("Successfully initialized and logged into BlueSky client")
         except Exception as e:
             logging.error(f"Failed to initialize BlueSky client: {str(e)}")
@@ -117,16 +121,18 @@ class BlueSkyMonitor(commands.Cog):
             if not self.client:
                 logging.info("Reinitializing BlueSky client...")
                 self.client = Client()
-                try:
-                    self.client.login(self.bluesky_email, self.bluesky_password)
-                    logging.info("Successfully logged in to BlueSky")
-                except Exception as e:
-                    logging.error(f"Failed to login to BlueSky: {str(e)}")
-                    return
+                session = self.client.com.atproto.server.create_session(
+                    identifier=self.bluesky_email,
+                    password=self.bluesky_password
+                )
+                logging.info("Successfully logged in to BlueSky")
                     
-            # Get the latest posts
+            # Get the latest posts using the correct method
             logging.info("Fetching latest posts from BlueSky...")
-            response = self.client.get_author_feed(self.bluesky_handle, limit=1)
+            response = self.client.com.atproto.feed.get_author_feed(
+                actor=self.bluesky_handle,
+                limit=1
+            )
             if not response or not response.feed:
                 logging.warning("No posts found in BlueSky feed")
                 return
@@ -193,9 +199,15 @@ class BlueSkyMonitor(commands.Cog):
             if not self.client:
                 logging.info("Reinitializing BlueSky client for test command...")
                 self.client = Client()
-                self.client.login(self.bluesky_email, self.bluesky_password)
+                session = self.client.com.atproto.server.create_session(
+                    identifier=self.bluesky_email,
+                    password=self.bluesky_password
+                )
                 
-            response = self.client.get_author_feed(self.bluesky_handle, limit=1)
+            response = self.client.com.atproto.feed.get_author_feed(
+                actor=self.bluesky_handle,
+                limit=1
+            )
             if not response or not response.feed:
                 logging.warning("No posts found during test command")
                 await interaction.followup.send("No posts found in BlueSky feed.")
