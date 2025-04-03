@@ -59,19 +59,20 @@ class BlueSkyMonitor(commands.Cog):
         self.bluesky_password = BLUESKY_LOGIN_PASSWORD
         self.client = None
         self.last_post_uri = None
-        self.session = None
         
         # Initialize BlueSky client
         try:
             logging.info("Attempting to initialize BlueSky client...")
             self.client = Client()
             # Create session with proper model
-            self.session = self.client.com.atproto.server.create_session(
+            session = self.client.com.atproto.server.create_session(
                 data=models.ComAtprotoServerCreateSession.Data(
                     identifier=self.bluesky_email,
                     password=self.bluesky_password
                 )
             )
+            # Set the session in the client
+            self.client.session = session
             logging.info("Successfully initialized and logged into BlueSky client")
         except Exception as e:
             logging.error(f"Failed to initialize BlueSky client: {str(e)}")
@@ -99,15 +100,17 @@ class BlueSkyMonitor(commands.Cog):
     async def ensure_authenticated(self):
         """Ensure the client is authenticated before making requests"""
         try:
-            if not self.client or not self.session:
+            if not self.client or not hasattr(self.client, 'session'):
                 logging.info("Reinitializing BlueSky client and session...")
                 self.client = Client()
-                self.session = self.client.com.atproto.server.create_session(
+                session = self.client.com.atproto.server.create_session(
                     data=models.ComAtprotoServerCreateSession.Data(
                         identifier=self.bluesky_email,
                         password=self.bluesky_password
                     )
                 )
+                # Set the session in the client
+                self.client.session = session
                 logging.info("Successfully reinitialized BlueSky client and session")
         except Exception as e:
             logging.error(f"Error ensuring authentication: {str(e)}")
