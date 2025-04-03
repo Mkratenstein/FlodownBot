@@ -129,7 +129,7 @@ class BlueSkyMonitor(commands.Cog):
                     
             # Get the latest posts using the correct method
             logging.info("Fetching latest posts from BlueSky...")
-            response = self.client.com.atproto.feed.get_author_feed(
+            response = self.client.app.bsky.feed.get_author_feed(
                 actor=self.bluesky_handle,
                 limit=1
             )
@@ -204,7 +204,7 @@ class BlueSkyMonitor(commands.Cog):
                     password=self.bluesky_password
                 )
                 
-            response = self.client.com.atproto.feed.get_author_feed(
+            response = self.client.app.bsky.feed.get_author_feed(
                 actor=self.bluesky_handle,
                 limit=1
             )
