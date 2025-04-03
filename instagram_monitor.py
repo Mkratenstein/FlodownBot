@@ -10,6 +10,7 @@ from instaloader.exceptions import ConnectionException, BadCredentialsException,
 import threading
 import queue
 import concurrent.futures
+import re
 
 # Set up logging
 logging.basicConfig(
@@ -215,18 +216,38 @@ class InstagramMonitor:
             if media_content and isinstance(media_content, list) and len(media_content) > 0:
                 thumbnail_url = media_content[0].get('url', '')
             
+            # Clean up the description/caption
+            description = latest_entry.get('description', '') or latest_entry.get('title', '')
+            
+            # Remove HTML tags and clean up the text
+            # Remove HTML tags
+            description = re.sub(r'<[^>]+>', '', description)
+            # Remove multiple spaces and newlines
+            description = re.sub(r'\s+', ' ', description).strip()
+            
+            # Format the date
+            published_date = latest_entry.get('published', datetime.now().isoformat())
+            try:
+                # Parse the date string
+                parsed_date = datetime.strptime(published_date, "%a, %d %b %Y %H:%M:%S %z")
+                # Format it nicely
+                formatted_date = parsed_date.strftime("%m/%d/%Y %I:%M %p")
+            except:
+                formatted_date = datetime.now().strftime("%m/%d/%Y %I:%M %p")
+            
             # Create post data from RSS entry with safe defaults
             post_data = {
                 'post_id': post_id,
-                'date': latest_entry.get('published', datetime.now().isoformat()),
-                'caption': latest_entry.get('description', '') or latest_entry.get('title', ''),
+                'date': published_date,
+                'caption': description,
                 'url': latest_entry.get('link', ''),
                 'is_video': False,  # RSS doesn't provide this info
                 'video_url': None,
                 'thumbnail_url': thumbnail_url,
                 'source': 'rss',
                 'likes': 0,  # Default to 0 since RSS doesn't provide this
-                'comments': 0  # Default to 0 since RSS doesn't provide this
+                'comments': 0,  # Default to 0 since RSS doesn't provide this
+                'formatted_date': formatted_date  # Add formatted date for display
             }
             
             logging.info(f"New post found in RSS feed: {post_data['url']}")
