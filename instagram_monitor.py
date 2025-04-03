@@ -5,8 +5,8 @@ from database import init_db, get_latest_post_id, save_post, get_post_history
 import os
 from dotenv import load_dotenv
 import time
-from instagrapi import Client
-from instagrapi.exceptions import LoginRequired, ClientError
+import instaloader
+from instaloader.exceptions import LoginRequired, ConnectionException, BadCredentialsException
 
 # Set up logging
 logging.basicConfig(
@@ -26,7 +26,7 @@ class InstagramMonitor:
         self.rss_url = os.getenv('INSTAGRAM_RSS_URL')
         self.instagram_username = os.getenv('INSTAGRAM_USERNAME', 'goosetheband')
         self.instagram_password = os.getenv('INSTAGRAM_PASSWORD')
-        self.client = None
+        self.loader = None
         self.last_scrape_attempt = 0
         self.scrape_cooldown = 300  # 5 minutes cooldown between scrape attempts
         self.max_retries = 3
@@ -34,32 +34,32 @@ class InstagramMonitor:
         init_db()
         
     def _login(self):
-        """Login to Instagram using instagrapi"""
+        """Login to Instagram using instaloader"""
         try:
             if not self.instagram_username or not self.instagram_password:
                 logging.error("Instagram credentials not configured")
                 return False
                 
-            if self.client is None:
-                self.client = Client()
+            if self.loader is None:
+                self.loader = instaloader.Instaloader()
                 
             # Try to login
-            self.client.login(self.instagram_username, self.instagram_password)
+            self.loader.login(self.instagram_username, self.instagram_password)
             logging.info("Successfully logged in to Instagram")
             return True
             
-        except LoginRequired as e:
-            logging.error(f"Login required: {str(e)}")
+        except BadCredentialsException as e:
+            logging.error(f"Bad credentials: {str(e)}")
             return False
-        except ClientError as e:
-            logging.error(f"Client error during login: {str(e)}")
+        except ConnectionException as e:
+            logging.error(f"Connection error during login: {str(e)}")
             return False
         except Exception as e:
             logging.error(f"Error during login: {str(e)}")
             return False
             
     def check_direct_scrape(self):
-        """Check Instagram using instagrapi"""
+        """Check Instagram using instaloader"""
         try:
             # Check if we need to wait before trying again
             current_time = time.time()
@@ -75,17 +75,18 @@ class InstagramMonitor:
                 logging.error("Failed to login to Instagram")
                 return None
             
-            # Get user media
-            user_id = self.client.user_id_from_username(self.instagram_username)
-            medias = self.client.user_medias(user_id, 1)  # Get only the latest post
+            # Get user profile
+            profile = instaloader.Profile.from_username(self.loader.context, self.instagram_username)
             
-            if not medias:
+            # Get latest post
+            posts = list(profile.get_posts())
+            if not posts:
                 logging.warning("No posts found")
                 return None
                 
-            latest_post = medias[0]
+            latest_post = posts[0]
             
-            post_id = str(latest_post.id)
+            post_id = str(latest_post.mediaid)
             if not post_id:
                 logging.error("Post ID is missing")
                 return None
@@ -98,12 +99,12 @@ class InstagramMonitor:
             # Create post data
             post_data = {
                 'post_id': post_id,
-                'date': latest_post.taken_at.isoformat(),
-                'caption': latest_post.caption_text if latest_post.caption_text else '',
-                'url': f"https://www.instagram.com/p/{latest_post.code}/",
-                'is_video': latest_post.media_type == 2,  # 2 = video
-                'video_url': latest_post.video_url if latest_post.media_type == 2 else None,
-                'thumbnail_url': latest_post.thumbnail_url if latest_post.media_type == 2 else latest_post.photo_url,
+                'date': latest_post.date.isoformat(),
+                'caption': latest_post.caption if latest_post.caption else '',
+                'url': f"https://www.instagram.com/p/{latest_post.shortcode}/",
+                'is_video': latest_post.is_video,
+                'video_url': latest_post.video_url if latest_post.is_video else None,
+                'thumbnail_url': latest_post.url,
                 'source': 'api'
             }
             
@@ -112,10 +113,10 @@ class InstagramMonitor:
             
         except LoginRequired as e:
             logging.error(f"Login required: {str(e)}")
-            self.client = None  # Reset client to force re-login
+            self.loader = None  # Reset loader to force re-login
             return None
-        except ClientError as e:
-            logging.error(f"Client error: {str(e)}")
+        except ConnectionException as e:
+            logging.error(f"Connection error: {str(e)}")
             return None
         except Exception as e:
             logging.error(f"Unexpected error in API fetch: {str(e)}")
