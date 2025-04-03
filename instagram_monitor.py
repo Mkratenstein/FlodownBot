@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 import time
 import instaloader
-from instaloader.exceptions import LoginRequired, ConnectionException, BadCredentialsException
+from instaloader.exceptions import ConnectionException, BadCredentialsException, LoginRequiredException
 
 # Set up logging
 logging.basicConfig(
@@ -111,7 +111,7 @@ class InstagramMonitor:
             save_post(post_data)
             return post_data
             
-        except LoginRequired as e:
+        except LoginRequiredException as e:
             logging.error(f"Login required: {str(e)}")
             self.loader = None  # Reset loader to force re-login
             return None
