@@ -10,6 +10,7 @@ import json
 from requests.exceptions import RequestException, ConnectionError, Timeout, HTTPError
 from json.decoder import JSONDecodeError
 from urllib.parse import urlparse
+import random
 
 # Set up logging
 logging.basicConfig(
@@ -22,75 +23,93 @@ logging.basicConfig(
 )
 
 # Load environment variables
-load_dotenv()
+load_dotenv('Instagram.env')
 
 class InstagramMonitor:
     def __init__(self):
         self.rss_url = os.getenv('INSTAGRAM_RSS_URL')
         self.instagram_username = os.getenv('INSTAGRAM_USERNAME', 'goosetheband')
         self.instagram_password = os.getenv('INSTAGRAM_PASSWORD')
-        self.access_token = None
-        self.token_expiry = None
+        self.session = requests.Session()
         self.last_scrape_attempt = 0
         self.scrape_cooldown = 300  # 5 minutes cooldown between scrape attempts
         self.max_retries = 3
         self.retry_delay = 5  # seconds between retries
         init_db()
         
-    def _get_access_token(self):
-        """Get Instagram access token using username and password"""
+        # Set up session headers
+        self.session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'X-IG-App-ID': '936619743392459',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Connection': 'keep-alive',
+            'Referer': 'https://www.instagram.com/',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin'
+        })
+        
+    def _get_csrf_token(self):
+        """Get CSRF token from Instagram"""
+        try:
+            response = self.session.get('https://www.instagram.com/')
+            if 'csrftoken' in response.cookies:
+                return response.cookies['csrftoken']
+            return None
+        except Exception as e:
+            logging.error(f"Error getting CSRF token: {str(e)}")
+            return None
+            
+    def _login(self):
+        """Login to Instagram"""
         try:
             if not self.instagram_username or not self.instagram_password:
                 logging.error("Instagram credentials not configured")
-                return None
+                return False
                 
-            # Instagram login endpoint
-            login_url = 'https://www.instagram.com/accounts/login/ajax/'
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                'Accept': '*/*',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-Instagram-AJAX': '1',
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Origin': 'https://www.instagram.com',
-                'Referer': 'https://www.instagram.com/'
-            }
+            # Get CSRF token
+            csrf_token = self._get_csrf_token()
+            if not csrf_token:
+                logging.error("Failed to get CSRF token")
+                return False
+                
+            # Update headers with CSRF token
+            self.session.headers.update({
+                'X-CSRFToken': csrf_token
+            })
             
-            # First get the CSRF token
-            session = requests.Session()
-            response = session.get('https://www.instagram.com/')
-            csrf = response.cookies['csrftoken']
-            headers['X-CSRFToken'] = csrf
+            # First, get the login page to get additional cookies
+            self.session.get('https://www.instagram.com/accounts/login/')
             
-            # Login data
+            # Prepare login data
             login_data = {
                 'username': self.instagram_username,
-                'password': self.instagram_password,
+                'enc_password': f'#PWD_INSTAGRAM_BROWSER:0:{int(time.time())}:{self.instagram_password}',
                 'queryParams': '{}',
-                'optIntoOneTap': 'false'
+                'optIntoOneTap': 'false',
+                'stopDeletionNonce': '',
+                'trustedDeviceRecords': '{}'
             }
             
             # Perform login
-            response = session.post(login_url, data=login_data, headers=headers)
-            response.raise_for_status()
+            login_url = 'https://www.instagram.com/api/v1/web/accounts/login/ajax/'
+            response = self.session.post(login_url, data=login_data)
             
-            # Get the access token from the response
-            if response.json().get('authenticated'):
-                # Extract access token from shared data
-                shared_data = response.json().get('sharedData', {})
-                if shared_data:
-                    self.access_token = shared_data.get('accessToken')
-                    self.token_expiry = time.time() + 3600  # Token expires in 1 hour
-                    logging.info("Successfully obtained Instagram access token")
-                    return self.access_token
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('authenticated'):
+                    logging.info("Successfully logged in to Instagram")
+                    return True
                     
-            logging.error("Failed to authenticate with Instagram")
-            return None
+            logging.error(f"Login failed: {response.text}")
+            return False
             
         except Exception as e:
-            logging.error(f"Error getting Instagram access token: {str(e)}")
-            return None
+            logging.error(f"Error during login: {str(e)}")
+            return False
             
     def _validate_url(self, url):
         """Validate URL format"""
@@ -101,42 +120,43 @@ class InstagramMonitor:
             logging.error(f"Invalid URL format: {url} - {str(e)}")
             return False
             
-    def _make_request(self, url, headers=None, retry_count=0):
+    def _make_request(self, url, method='GET', data=None, retry_count=0):
         """Make HTTP request with retry logic"""
         try:
-            if headers is None:
-                headers = {}
+            if method == 'GET':
+                response = self.session.get(url, timeout=10)
+            else:
+                response = self.session.post(url, data=data, timeout=10)
                 
-            response = requests.get(url, headers=headers, timeout=10)
             response.raise_for_status()
             return response
         except ConnectionError as e:
             logging.error(f"Connection error for URL {url}: {str(e)}")
             if retry_count < self.max_retries:
                 time.sleep(self.retry_delay)
-                return self._make_request(url, headers, retry_count + 1)
+                return self._make_request(url, method, data, retry_count + 1)
             raise
         except Timeout as e:
             logging.error(f"Timeout error for URL {url}: {str(e)}")
             if retry_count < self.max_retries:
                 time.sleep(self.retry_delay)
-                return self._make_request(url, headers, retry_count + 1)
+                return self._make_request(url, method, data, retry_count + 1)
             raise
         except HTTPError as e:
             logging.error(f"HTTP error for URL {url}: {str(e)}")
             if retry_count < self.max_retries and e.response.status_code in [429, 500, 502, 503, 504]:
                 time.sleep(self.retry_delay)
-                return self._make_request(url, headers, retry_count + 1)
+                return self._make_request(url, method, data, retry_count + 1)
             raise
         except RequestException as e:
             logging.error(f"Request error for URL {url}: {str(e)}")
             if retry_count < self.max_retries:
                 time.sleep(self.retry_delay)
-                return self._make_request(url, headers, retry_count + 1)
+                return self._make_request(url, method, data, retry_count + 1)
             raise
             
     def check_direct_scrape(self):
-        """Check Instagram using their Graph API"""
+        """Check Instagram using their API"""
         try:
             # Check if we need to wait before trying again
             current_time = time.time()
@@ -145,23 +165,16 @@ class InstagramMonitor:
                 return None
                 
             self.last_scrape_attempt = current_time
-            logging.info("Attempting Instagram Graph API fetch...")
+            logging.info("Attempting Instagram API fetch...")
             
-            # Check if we need to refresh the access token
-            if not self.access_token or (self.token_expiry and current_time >= self.token_expiry):
-                self.access_token = self._get_access_token()
-                if not self.access_token:
-                    logging.error("Failed to get Instagram access token")
-                    return None
+            # Ensure we're logged in
+            if not self._login():
+                logging.error("Failed to login to Instagram")
+                return None
             
             # Get user profile data
             profile_url = f'https://www.instagram.com/api/v1/users/web_profile_info/?username={self.instagram_username}'
-            headers = {
-                'Authorization': f'Bearer {self.access_token}',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
-            
-            response = self._make_request(profile_url, headers)
+            response = self._make_request(profile_url)
             data = response.json()
             
             if not data.get('data', {}).get('user', {}).get('edge_owner_to_timeline_media', {}).get('edges'):
@@ -211,7 +224,7 @@ class InstagramMonitor:
             error_msg = str(e)
             if "429" in error_msg or "401" in error_msg:  # Rate limit or unauthorized
                 logging.warning("Instagram rate limit hit, will try again later")
-                self.access_token = None  # Force token refresh on next attempt
+                self.session = requests.Session()  # Reset session on rate limit
             else:
                 logging.error(f"Unexpected error in API fetch: {error_msg}")
             return None
@@ -271,8 +284,8 @@ class InstagramMonitor:
             return None
             
     def get_latest_post(self):
-        """Get the latest post using Graph API first, then RSS as fallback"""
-        # Try Graph API first
+        """Get the latest post using API first, then RSS as fallback"""
+        # Try API first
         post = self.check_direct_scrape()
         if post:
             return post
