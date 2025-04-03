@@ -220,4 +220,42 @@ async def setup(bot):
     except Exception as e:
         logging.error(f"Error setting up BlueSky Monitor Cog: {str(e)}")
         logging.error(traceback.format_exc())
-        raise 
+        raise
+
+class Bot(commands.Bot):
+    def __init__(self):
+        intents = discord.Intents.default()
+        intents.message_content = True
+        super().__init__(command_prefix="!", intents=intents)
+        
+    async def setup_hook(self):
+        logging.info("Setting up bot...")
+        try:
+            await setup(self)
+            logging.info("Bot setup completed successfully")
+        except Exception as e:
+            logging.error(f"Error in bot setup: {str(e)}")
+            logging.error(traceback.format_exc())
+            raise
+            
+    async def on_ready(self):
+        logging.info(f"Bot is ready! Logged in as {self.user.name} (ID: {self.user.id})")
+        try:
+            synced = await self.tree.sync()
+            logging.info(f"Synced {len(synced)} command(s)")
+        except Exception as e:
+            logging.error(f"Error syncing commands: {str(e)}")
+            logging.error(traceback.format_exc())
+
+def main():
+    logging.info("Starting bot...")
+    try:
+        bot = Bot()
+        bot.run(DISCORD_TOKEN)
+    except Exception as e:
+        logging.error(f"Error starting bot: {str(e)}")
+        logging.error(traceback.format_exc())
+        raise
+
+if __name__ == "__main__":
+    main() 
