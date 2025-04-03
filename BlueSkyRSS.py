@@ -59,13 +59,14 @@ class BlueSkyMonitor(commands.Cog):
         self.bluesky_password = BLUESKY_LOGIN_PASSWORD
         self.client = None
         self.last_post_uri = None
+        self.session = None
         
         # Initialize BlueSky client
         try:
             logging.info("Attempting to initialize BlueSky client...")
             self.client = Client()
             # Create session with proper model
-            session = self.client.com.atproto.server.create_session(
+            self.session = self.client.com.atproto.server.create_session(
                 data=models.ComAtprotoServerCreateSession.Data(
                     identifier=self.bluesky_email,
                     password=self.bluesky_password
@@ -95,20 +96,29 @@ class BlueSkyMonitor(commands.Cog):
             logging.error(f"Error cancelling feed check task: {str(e)}")
         logging.info("BlueSky Monitor Cog unloaded")
         
-    @tasks.loop(minutes=5)
-    async def check_feed(self):
+    async def ensure_authenticated(self):
+        """Ensure the client is authenticated before making requests"""
         try:
-            logging.info(f"Checking BlueSky feed for {self.bluesky_handle}")
-            if not self.client:
-                logging.info("Reinitializing BlueSky client...")
+            if not self.client or not self.session:
+                logging.info("Reinitializing BlueSky client and session...")
                 self.client = Client()
-                session = self.client.com.atproto.server.create_session(
+                self.session = self.client.com.atproto.server.create_session(
                     data=models.ComAtprotoServerCreateSession.Data(
                         identifier=self.bluesky_email,
                         password=self.bluesky_password
                     )
                 )
-                logging.info("Successfully logged in to BlueSky")
+                logging.info("Successfully reinitialized BlueSky client and session")
+        except Exception as e:
+            logging.error(f"Error ensuring authentication: {str(e)}")
+            logging.error(traceback.format_exc())
+            raise
+        
+    @tasks.loop(minutes=5)
+    async def check_feed(self):
+        try:
+            logging.info(f"Checking BlueSky feed for {self.bluesky_handle}")
+            await self.ensure_authenticated()
                     
             # Get the latest posts using the correct method
             logging.info("Fetching latest posts from BlueSky...")
@@ -181,15 +191,7 @@ class BlueSkyMonitor(commands.Cog):
             await interaction.response.defer()
             logging.info("Testing BlueSky monitor...")
             
-            if not self.client:
-                logging.info("Reinitializing BlueSky client for test command...")
-                self.client = Client()
-                session = self.client.com.atproto.server.create_session(
-                    data=models.ComAtprotoServerCreateSession.Data(
-                        identifier=self.bluesky_email,
-                        password=self.bluesky_password
-                    )
-                )
+            await self.ensure_authenticated()
                 
             response = self.client.app.bsky.feed.get_author_feed(
                 params=models.AppBskyFeedGetAuthorFeed.Params(
