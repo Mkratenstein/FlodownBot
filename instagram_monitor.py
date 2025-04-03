@@ -224,6 +224,10 @@ class InstagramMonitor:
             description = re.sub(r'<[^>]+>', '', description)
             # Remove multiple spaces and newlines
             description = re.sub(r'\s+', ' ', description).strip()
+            # Remove duplicate Instagram text
+            description = re.sub(r'^Instagram\s*$', '', description, flags=re.MULTILINE)
+            description = re.sub(r'Hey! Goose the Organization just posted something on Instagram\s*', '', description)
+            description = description.strip()
             
             # Format the date
             published_date = latest_entry.get('published', datetime.now().isoformat())
@@ -251,7 +255,7 @@ class InstagramMonitor:
                 'likes': 0,  # Default to 0 since RSS doesn't provide this
                 'comments': 0,  # Default to 0 since RSS doesn't provide this
                 'formatted_date': formatted_date,  # Add formatted date for display
-                'discord_message': f"Hey! Goose the Organization just posted something on Instagram\n\n{description}\n\n[Instagram]({post_url})•{formatted_date}"  # Format Discord message
+                'discord_message': f"Hey! Goose the Organization just posted something on Instagram ({post_url})\n\n{description}\n\n[Instagram]•{formatted_date}"  # Format Discord message
             }
             
             logging.info(f"New post found in RSS feed: {post_data['url']}")
@@ -259,7 +263,7 @@ class InstagramMonitor:
             # Cache the result
             self._set_cached_data(cache_key, post_data)
             
-            # Save to database
+            # Save to database and return
             save_post(post_data)
             return post_data
             
