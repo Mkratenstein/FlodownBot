@@ -104,17 +104,40 @@ class BlueSkyMonitor(commands.Cog):
             if not self.client or not hasattr(self.client, 'session'):
                 logging.info("Reinitializing BlueSky client and session...")
                 self.client = Client()
-                session = self.client.com.atproto.server.create_session(
-                    data=models.ComAtprotoServerCreateSession.Data(
-                        identifier=self.bluesky_email,
-                        password=self.bluesky_password
+                try:
+                    # Create session with proper model
+                    session = self.client.com.atproto.server.create_session(
+                        data=models.ComAtprotoServerCreateSession.Data(
+                            identifier=self.bluesky_email,
+                            password=self.bluesky_password
+                        )
                     )
-                )
-                # Set the session in the client
-                self.client.session = session
-                # Set the access token in the client's headers
-                self.client._headers['Authorization'] = f'Bearer {session.access_jwt}'
-                logging.info("Successfully reinitialized BlueSky client and session")
+                    # Set the session in the client
+                    self.client.session = session
+                    # Set the access token in the client's headers
+                    self.client._headers['Authorization'] = f'Bearer {session.access_jwt}'
+                    logging.info("Successfully reinitialized BlueSky client and session")
+                except Exception as auth_error:
+                    logging.error(f"Authentication error: {str(auth_error)}")
+                    # Try alternative authentication method
+                    try:
+                        response = requests.post(
+                            'https://bsky.social/xrpc/com.atproto.server.createSession',
+                            json={
+                                'identifier': self.bluesky_email,
+                                'password': self.bluesky_password
+                            }
+                        )
+                        if response.status_code == 200:
+                            session_data = response.json()
+                            self.client.session = type('Session', (), {'access_jwt': session_data.get('accessJwt')})
+                            self.client._headers['Authorization'] = f'Bearer {session_data.get("accessJwt")}'
+                            logging.info("Successfully authenticated using alternative method")
+                        else:
+                            raise Exception(f"Authentication failed with status code: {response.status_code}")
+                    except Exception as alt_auth_error:
+                        logging.error(f"Alternative authentication failed: {str(alt_auth_error)}")
+                        raise
         except Exception as e:
             logging.error(f"Error ensuring authentication: {str(e)}")
             logging.error(traceback.format_exc())
