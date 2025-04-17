@@ -58,22 +58,13 @@ class BlueSkyMonitor(commands.Cog):
         self.bluesky_password = BLUESKY_LOGIN_PASSWORD
         self.client = None
         self.last_post_uri = None
+        self.access_token = None
         
         # Initialize BlueSky client
         try:
             logging.info("Attempting to initialize BlueSky client...")
             self.client = Client()
-            # Create session with proper model
-            session = self.client.com.atproto.server.create_session(
-                data=models.ComAtprotoServerCreateSession.Data(
-                    identifier=self.bluesky_email,
-                    password=self.bluesky_password
-                )
-            )
-            # Set the session in the client
-            self.client.session = session
-            # Set the access token in the client's headers
-            self.client._headers['Authorization'] = f'Bearer {session.access_jwt}'
+            self._authenticate()
             logging.info("Successfully initialized and logged into BlueSky client")
         except Exception as e:
             logging.error(f"Failed to initialize BlueSky client: {str(e)}")
@@ -98,46 +89,56 @@ class BlueSkyMonitor(commands.Cog):
             logging.error(f"Error cancelling feed check task: {str(e)}")
         logging.info("BlueSky Monitor Cog unloaded")
         
+    def _authenticate(self):
+        """Internal method to handle authentication"""
+        try:
+            # Try direct authentication first
+            response = requests.post(
+                'https://bsky.social/xrpc/com.atproto.server.createSession',
+                json={
+                    'identifier': self.bluesky_email,
+                    'password': self.bluesky_password
+                }
+            )
+            
+            if response.status_code == 200:
+                session_data = response.json()
+                self.access_token = session_data.get('accessJwt')
+                if not self.access_token:
+                    raise Exception("No access token in response")
+                
+                # Set up the client with the token
+                self.client = Client()
+                self.client._headers['Authorization'] = f'Bearer {self.access_token}'
+                logging.info("Successfully authenticated with BlueSky")
+            else:
+                raise Exception(f"Authentication failed with status code: {response.status_code}")
+                
+        except Exception as e:
+            logging.error(f"Authentication error: {str(e)}")
+            raise
+        
     async def ensure_authenticated(self):
         """Ensure the client is authenticated before making requests"""
         try:
-            if not self.client or not hasattr(self.client, 'session'):
-                logging.info("Reinitializing BlueSky client and session...")
-                self.client = Client()
+            if not self.access_token:
+                logging.info("No access token found, authenticating...")
+                self._authenticate()
+            else:
+                # Verify the token is still valid by making a test request
                 try:
-                    # Create session with proper model
-                    session = self.client.com.atproto.server.create_session(
-                        data=models.ComAtprotoServerCreateSession.Data(
-                            identifier=self.bluesky_email,
-                            password=self.bluesky_password
-                        )
+                    test_response = requests.get(
+                        'https://bsky.social/xrpc/app.bsky.actor.getProfile',
+                        headers={'Authorization': f'Bearer {self.access_token}'},
+                        params={'actor': self.bluesky_handle}
                     )
-                    # Set the session in the client
-                    self.client.session = session
-                    # Set the access token in the client's headers
-                    self.client._headers['Authorization'] = f'Bearer {session.access_jwt}'
-                    logging.info("Successfully reinitialized BlueSky client and session")
-                except Exception as auth_error:
-                    logging.error(f"Authentication error: {str(auth_error)}")
-                    # Try alternative authentication method
-                    try:
-                        response = requests.post(
-                            'https://bsky.social/xrpc/com.atproto.server.createSession',
-                            json={
-                                'identifier': self.bluesky_email,
-                                'password': self.bluesky_password
-                            }
-                        )
-                        if response.status_code == 200:
-                            session_data = response.json()
-                            self.client.session = type('Session', (), {'access_jwt': session_data.get('accessJwt')})
-                            self.client._headers['Authorization'] = f'Bearer {session_data.get("accessJwt")}'
-                            logging.info("Successfully authenticated using alternative method")
-                        else:
-                            raise Exception(f"Authentication failed with status code: {response.status_code}")
-                    except Exception as alt_auth_error:
-                        logging.error(f"Alternative authentication failed: {str(alt_auth_error)}")
-                        raise
+                    if test_response.status_code == 401:
+                        logging.info("Token expired, re-authenticating...")
+                        self._authenticate()
+                except Exception as e:
+                    logging.error(f"Error verifying token: {str(e)}")
+                    self._authenticate()
+                    
         except Exception as e:
             logging.error(f"Error ensuring authentication: {str(e)}")
             logging.error(traceback.format_exc())
@@ -149,20 +150,27 @@ class BlueSkyMonitor(commands.Cog):
             logging.info(f"Checking BlueSky feed for {self.bluesky_handle}")
             await self.ensure_authenticated()
                     
-            # Get the latest posts using the correct method
+            # Get the latest posts using direct HTTP request
             logging.info("Fetching latest posts from BlueSky...")
-            response = self.client.app.bsky.feed.get_author_feed(
-                params=models.AppBskyFeedGetAuthorFeed.Params(
-                    actor=self.bluesky_handle,
-                    limit=1
-                )
+            response = requests.get(
+                'https://bsky.social/xrpc/app.bsky.feed.getAuthorFeed',
+                headers={'Authorization': f'Bearer {self.access_token}'},
+                params={
+                    'actor': self.bluesky_handle,
+                    'limit': 1
+                }
             )
-            if not response or not response.feed:
+            
+            if response.status_code != 200:
+                raise Exception(f"Failed to fetch feed: {response.status_code}")
+                
+            feed_data = response.json()
+            if not feed_data.get('feed'):
                 logging.warning("No posts found in BlueSky feed")
                 return
                 
-            latest_post = response.feed[0]
-            post_uri = latest_post.post.uri
+            latest_post = feed_data['feed'][0]
+            post_uri = latest_post['post']['uri']
             logging.info(f"Latest post URI: {post_uri}")
             
             if not self.last_post_uri:
@@ -222,18 +230,20 @@ class BlueSkyMonitor(commands.Cog):
             
             await self.ensure_authenticated()
                 
-            response = self.client.app.bsky.feed.get_author_feed(
-                params=models.AppBskyFeedGetAuthorFeed.Params(
-                    actor=self.bluesky_handle,
-                    limit=1
-                )
+            response = requests.get(
+                'https://bsky.social/xrpc/app.bsky.feed.getAuthorFeed',
+                headers={'Authorization': f'Bearer {self.access_token}'},
+                params={
+                    'actor': self.bluesky_handle,
+                    'limit': 1
+                }
             )
-            if not response or not response.feed:
+            if not response or not response.json().get('feed'):
                 logging.warning("No posts found during test command")
                 await interaction.followup.send("No posts found in BlueSky feed.")
                 return
                 
-            latest_post = response.feed[0]
+            latest_post = response.json()['feed'][0]
             await self.process_and_send_post(latest_post)
             await interaction.followup.send("Successfully fetched and posted the latest BlueSky post!")
             logging.info("Test command completed successfully")
