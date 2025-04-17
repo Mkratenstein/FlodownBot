@@ -144,9 +144,15 @@ class BlueSkyMonitor(commands.Cog):
             logging.error(traceback.format_exc())
             raise
         
-    @tasks.loop(minutes=5)
+    @tasks.loop(hours=1)
     async def check_feed(self):
         try:
+            # Check if current time is between 12pm and 8pm
+            current_hour = datetime.now().hour
+            if not (12 <= current_hour < 20):
+                logging.info("Outside of monitoring hours (12pm-8pm), skipping check")
+                return
+
             logging.info(f"Checking BlueSky feed for {self.bluesky_handle}")
             await self.ensure_authenticated()
                     
