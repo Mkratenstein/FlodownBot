@@ -16,8 +16,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('bluesky_monitor.log'),
-        logging.StreamHandler()
+        logging.StreamHandler()  # Remove file handler for Railway
     ]
 )
 
@@ -73,6 +72,8 @@ class BlueSkyMonitor(commands.Cog):
             )
             # Set the session in the client
             self.client.session = session
+            # Set the access token in the client's headers
+            self.client._headers['Authorization'] = f'Bearer {session.access_jwt}'
             logging.info("Successfully initialized and logged into BlueSky client")
         except Exception as e:
             logging.error(f"Failed to initialize BlueSky client: {str(e)}")
@@ -111,6 +112,8 @@ class BlueSkyMonitor(commands.Cog):
                 )
                 # Set the session in the client
                 self.client.session = session
+                # Set the access token in the client's headers
+                self.client._headers['Authorization'] = f'Bearer {session.access_jwt}'
                 logging.info("Successfully reinitialized BlueSky client and session")
         except Exception as e:
             logging.error(f"Error ensuring authentication: {str(e)}")
@@ -243,23 +246,18 @@ class Bot(commands.Bot):
             logging.error(f"Error in bot setup: {str(e)}")
             logging.error(traceback.format_exc())
             raise
-            
+
     async def on_ready(self):
-        logging.info(f"Bot is ready! Logged in as {self.user.name} (ID: {self.user.id})")
-        try:
-            synced = await self.tree.sync()
-            logging.info(f"Synced {len(synced)} command(s)")
-        except Exception as e:
-            logging.error(f"Error syncing commands: {str(e)}")
-            logging.error(traceback.format_exc())
+        logging.info(f'Logged in as {self.user.name} ({self.user.id})')
+        logging.info('------')
 
 def main():
-    logging.info("Starting bot...")
+    """Main entry point for the bot"""
     try:
         bot = Bot()
         bot.run(DISCORD_TOKEN)
     except Exception as e:
-        logging.error(f"Error starting bot: {str(e)}")
+        logging.error(f"Error running bot: {str(e)}")
         logging.error(traceback.format_exc())
         raise
 

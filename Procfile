@@ -1,1 +1,1 @@
-web: python BlueSkyRSS.py 
+worker: python BlueSkyRSS.py 

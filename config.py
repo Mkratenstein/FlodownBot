@@ -9,8 +9,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('bluesky_monitor.log'),
-        logging.StreamHandler()
+        logging.StreamHandler()  # Remove file handler for Railway
     ]
 )
 
