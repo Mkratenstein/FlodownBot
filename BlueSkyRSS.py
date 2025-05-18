@@ -109,7 +109,6 @@ class BlueSkyMonitor(commands.Cog):
                 
                 # Set up the client with the token
                 self.client = Client()
-                self.client._headers['Authorization'] = f'Bearer {self.access_token}'
                 logging.info("Successfully authenticated with BlueSky")
             else:
                 raise Exception(f"Authentication failed with status code: {response.status_code}")
@@ -222,8 +221,8 @@ class BlueSkyMonitor(commands.Cog):
                 return
                 
             # Format the post content
-            content = post.post.record.text
-            timestamp = datetime.fromisoformat(post.post.indexedAt.replace('Z', '+00:00'))
+            content = post['post']['record']['text']
+            timestamp = datetime.fromisoformat(post['post']['indexedAt'].replace('Z', '+00:00'))
             formatted_time = timestamp.strftime("%m/%d/%Y %I:%M %p")
             
             # Create the message
