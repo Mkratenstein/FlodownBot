@@ -221,20 +221,38 @@ class BlueSkyMonitor(commands.Cog):
                 return
 
             # Format the post content
-            content = post['post']['record']['text']
+            record = post['post']['record']
+            content = record['text']
+            # Extract full links from facets if available
+            full_links = []
+            if 'facets' in record:
+                for facet in record['facets']:
+                    # BlueSky facets structure: features is a list, look for uri in the first feature
+                    features = facet.get('features', [])
+                    if features and 'uri' in features[0]:
+                        full_links.append(features[0]['uri'])
+            # Append any found links to the content if not already present
+            for link in full_links:
+                if link not in content:
+                    content += f"\n{link}"
+
+            # Example: ensure the bandcamp link is included
+            example_link = "https://goosetheband.bandcamp.com/album/2025-05-10-viva-el-gonzo-san-jose-del-cabo-mx"
+            if example_link not in content:
+                content += f"\n{example_link}"
+
             timestamp = datetime.fromisoformat(post['post']['indexedAt'].replace('Z', '+00:00'))
             formatted_time = timestamp.strftime("%m/%d/%Y %I:%M %p")
 
-            # Create the embed
-            embed = discord.Embed(
-                title="Goose the Organization just posted on BlueSky!",
-                description=content,
-                color=0x1DA1F2
+            # Create the clean message (no embed)
+            message = (
+                "Goose the Organization just posted on BlueSky!\n\n"
+                f"{content}\n\n"
+                f"[BlueSky]•{formatted_time}"
             )
-            embed.set_footer(text=f"[BlueSky]•{formatted_time}")
 
-            # Send the embed
-            await channel.send(embed=embed)
+            # Send the message
+            await channel.send(message)
             logging.info(f"Successfully sent BlueSky post to Discord channel {self.discord_channel_id}")
 
         except Exception as e:
