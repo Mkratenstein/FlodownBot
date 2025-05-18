@@ -227,11 +227,9 @@ class BlueSkyMonitor(commands.Cog):
             full_links = []
             if 'facets' in record:
                 for facet in record['facets']:
-                    # BlueSky facets structure: features is a list, look for uri in the first feature
                     features = facet.get('features', [])
                     if features and 'uri' in features[0]:
                         full_links.append(features[0]['uri'])
-            # Append any found links to the content if not already present
             for link in full_links:
                 if link not in content:
                     content += f"\n{link}"
@@ -244,11 +242,16 @@ class BlueSkyMonitor(commands.Cog):
             timestamp = datetime.fromisoformat(post['post']['indexedAt'].replace('Z', '+00:00'))
             formatted_time = timestamp.strftime("%m/%d/%Y %I:%M %p")
 
+            # Construct BlueSky web URL
+            bluesky_handle = self.bluesky_handle
+            post_id = post['post']['uri'].split('/')[-1]
+            bluesky_url = f"https://bsky.app/profile/{bluesky_handle}/post/{post_id}"
+
             # Create the clean message (no embed)
             message = (
                 "Goose the Organization just posted on BlueSky!\n\n"
                 f"{content}\n\n"
-                f"[BlueSky]•{formatted_time}"
+                f"[BlueSky]({bluesky_url})•{formatted_time}"
             )
 
             # Send the message
