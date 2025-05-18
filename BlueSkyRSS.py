@@ -219,19 +219,24 @@ class BlueSkyMonitor(commands.Cog):
             if not channel:
                 logging.error(f"Could not find channel with ID {self.discord_channel_id}")
                 return
-                
+
             # Format the post content
             content = post['post']['record']['text']
             timestamp = datetime.fromisoformat(post['post']['indexedAt'].replace('Z', '+00:00'))
             formatted_time = timestamp.strftime("%m/%d/%Y %I:%M %p")
-            
-            # Create the message
-            message = f"Hey! Goose the Organization just posted something on BlueSky\n\n{content}\n\n[BlueSky]•{formatted_time}"
-            
-            # Send the message
-            await channel.send(message)
+
+            # Create the embed
+            embed = discord.Embed(
+                title="Goose the Organization just posted on BlueSky!",
+                description=content,
+                color=0x1DA1F2
+            )
+            embed.set_footer(text=f"[BlueSky]•{formatted_time}")
+
+            # Send the embed
+            await channel.send(embed=embed)
             logging.info(f"Successfully sent BlueSky post to Discord channel {self.discord_channel_id}")
-            
+
         except Exception as e:
             logging.error(f"Error processing and sending BlueSky post: {str(e)}")
             logging.error(traceback.format_exc())
@@ -241,7 +246,7 @@ class BlueSkyMonitor(commands.Cog):
     async def test_bluesky(self, interaction: discord.Interaction):
         try:
             logging.info(f"Test command triggered by user {interaction.user.name}")
-            await interaction.response.defer()
+            await interaction.response.defer(ephemeral=True)
             logging.info("Testing BlueSky monitor...")
             
             await self.ensure_authenticated()
@@ -256,18 +261,18 @@ class BlueSkyMonitor(commands.Cog):
             )
             if not response or not response.json().get('feed'):
                 logging.warning("No posts found during test command")
-                await interaction.followup.send("No posts found in BlueSky feed.")
+                await interaction.followup.send("No posts found in BlueSky feed.", ephemeral=True)
                 return
                 
             latest_post = response.json()['feed'][0]
             await self.process_and_send_post(latest_post)
-            await interaction.followup.send("Successfully fetched and posted the latest BlueSky post!")
+            await interaction.followup.send("Successfully fetched and posted the latest BlueSky post!", ephemeral=True)
             logging.info("Test command completed successfully")
             
         except Exception as e:
             logging.error(f"Error in test_bluesky command: {str(e)}")
             logging.error(traceback.format_exc())
-            await interaction.followup.send(f"An error occurred: {str(e)}")
+            await interaction.followup.send(f"An error occurred: {str(e)}", ephemeral=True)
 
 async def setup(bot):
     logging.info("Setting up BlueSky Monitor Cog...")
