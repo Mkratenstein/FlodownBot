@@ -158,39 +158,50 @@ class BlueSkyMonitor(commands.Cog):
                     
             # Get the latest posts using direct HTTP request
             logging.info("Fetching latest posts from BlueSky...")
-            response = requests.get(
-                'https://bsky.social/xrpc/app.bsky.feed.getAuthorFeed',
-                headers={'Authorization': f'Bearer {self.access_token}'},
-                params={
-                    'actor': self.bluesky_handle,
-                    'limit': 1
-                }
-            )
-            
-            if response.status_code != 200:
-                raise Exception(f"Failed to fetch feed: {response.status_code}")
+            try:
+                response = requests.get(
+                    'https://bsky.social/xrpc/app.bsky.feed.getAuthorFeed',
+                    headers={
+                        'Authorization': f'Bearer {self.access_token}',
+                        'Content-Type': 'application/json'
+                    },
+                    params={
+                        'actor': self.bluesky_handle,
+                        'limit': 1
+                    }
+                )
                 
-            feed_data = response.json()
-            if not feed_data.get('feed'):
-                logging.warning("No posts found in BlueSky feed")
-                return
+                # Log the full response for debugging
+                logging.info(f"Response status: {response.status_code}")
+                if response.status_code != 200:
+                    logging.error(f"Response content: {response.text}")
+                    raise Exception(f"Failed to fetch feed: {response.status_code} - {response.text}")
+                    
+                feed_data = response.json()
+                if not feed_data.get('feed'):
+                    logging.warning("No posts found in BlueSky feed")
+                    return
+                    
+                latest_post = feed_data['feed'][0]
+                post_uri = latest_post['post']['uri']
+                logging.info(f"Latest post URI: {post_uri}")
                 
-            latest_post = feed_data['feed'][0]
-            post_uri = latest_post['post']['uri']
-            logging.info(f"Latest post URI: {post_uri}")
-            
-            if not self.last_post_uri:
-                self.last_post_uri = post_uri
-                logging.info("Initial BlueSky post URI set")
-                return
-                
-            if post_uri != self.last_post_uri:
-                logging.info(f"New BlueSky post found: {post_uri}")
-                # Process and send the new post
-                await self.process_and_send_post(latest_post)
-                self.last_post_uri = post_uri
-            else:
-                logging.info("No new posts found")
+                if not self.last_post_uri:
+                    self.last_post_uri = post_uri
+                    logging.info("Initial BlueSky post URI set")
+                    return
+                    
+                if post_uri != self.last_post_uri:
+                    logging.info(f"New BlueSky post found: {post_uri}")
+                    # Process and send the new post
+                    await self.process_and_send_post(latest_post)
+                    self.last_post_uri = post_uri
+                else:
+                    logging.info("No new posts found")
+                    
+            except requests.exceptions.RequestException as e:
+                logging.error(f"Request error: {str(e)}")
+                raise
                 
         except Exception as e:
             logging.error(f"Error checking BlueSky feed: {str(e)}")
