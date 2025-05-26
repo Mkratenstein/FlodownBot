@@ -110,11 +110,20 @@ class BlueSkyMonitor(commands.Cog):
                 # Set up the client with the token
                 self.client = Client()
                 logging.info("Successfully authenticated with BlueSky")
+                return True
             else:
-                raise Exception(f"Authentication failed with status code: {response.status_code}")
+                error_msg = f"Authentication failed with status code: {response.status_code}"
+                if response.text:
+                    try:
+                        error_data = response.json()
+                        error_msg += f" - {error_data.get('error', '')}: {error_data.get('message', '')}"
+                    except:
+                        error_msg += f" - {response.text}"
+                raise Exception(error_msg)
                 
         except Exception as e:
             logging.error(f"Authentication error: {str(e)}")
+            self.access_token = None  # Clear the token on failure
             raise
         
     async def ensure_authenticated(self):
@@ -123,25 +132,35 @@ class BlueSkyMonitor(commands.Cog):
             if not self.access_token:
                 logging.info("No access token found, authenticating...")
                 self._authenticate()
-            else:
-                # Verify the token is still valid by making a test request
-                try:
-                    test_response = requests.get(
-                        'https://bsky.social/xrpc/app.bsky.actor.getProfile',
-                        headers={'Authorization': f'Bearer {self.access_token}'},
-                        params={'actor': self.bluesky_handle}
-                    )
-                    if test_response.status_code == 401:
-                        logging.info("Token expired, re-authenticating...")
-                        self._authenticate()
-                except Exception as e:
-                    logging.error(f"Error verifying token: {str(e)}")
+                return
+
+            # Verify the token is still valid by making a test request
+            try:
+                test_response = requests.get(
+                    'https://bsky.social/xrpc/app.bsky.actor.getProfile',
+                    headers={'Authorization': f'Bearer {self.access_token}'},
+                    params={'actor': self.bluesky_handle}
+                )
+                
+                if test_response.status_code == 401:
+                    logging.info("Token expired, re-authenticating...")
                     self._authenticate()
+                elif test_response.status_code != 200:
+                    logging.warning(f"Unexpected status code {test_response.status_code} during token verification, re-authenticating...")
+                    self._authenticate()
+                    
+            except requests.exceptions.RequestException as e:
+                logging.error(f"Error verifying token: {str(e)}")
+                self._authenticate()
                     
         except Exception as e:
             logging.error(f"Error ensuring authentication: {str(e)}")
             logging.error(traceback.format_exc())
-            raise
+            # Try one more time to authenticate
+            try:
+                self._authenticate()
+            except:
+                raise
         
     @tasks.loop(hours=1)
     async def check_feed(self):
