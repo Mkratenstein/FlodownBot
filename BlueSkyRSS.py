@@ -242,6 +242,7 @@ class BlueSkyMonitor(commands.Cog):
             # Format the post content
             record = post['post']['record']
             content = record['text']
+            
             # Extract full links from facets if available
             full_links = []
             if 'facets' in record:
@@ -249,6 +250,8 @@ class BlueSkyMonitor(commands.Cog):
                     features = facet.get('features', [])
                     if features and 'uri' in features[0]:
                         full_links.append(features[0]['uri'])
+            
+            # Format links in the content
             for link in full_links:
                 if link not in content:
                     content += f"\n{link}"
@@ -266,15 +269,57 @@ class BlueSkyMonitor(commands.Cog):
             post_id = post['post']['uri'].split('/')[-1]
             bluesky_url = f"https://bsky.app/profile/{bluesky_handle}/post/{post_id}"
 
-            # Create the clean message (no embed)
-            message = (
-                "Goose the Organization just posted on BlueSky!\n\n"
-                f"{content}\n\n"
-                f"[BlueSky]({bluesky_url})•{formatted_time}"
+            # Create Discord embed
+            embed = discord.Embed(
+                title="Goose the Organization just posted on BlueSky!",
+                description=content,
+                color=discord.Color.blue(),
+                timestamp=timestamp
+            )
+            
+            # Set author information
+            embed.set_author(
+                name=f"@{bluesky_handle}",
+                url=bluesky_url,
+                icon_url="https://bsky.app/static/icon.png"
+            )
+            
+            # Add footer with timestamp
+            embed.set_footer(text=f"Posted on BlueSky • {formatted_time}")
+
+            # Handle media attachments if present
+            if 'embed' in record:
+                if 'images' in record['embed']:
+                    # Get the first image for the embed
+                    first_image = record['embed']['images'][0]
+                    if 'alt' in first_image:
+                        embed.add_field(name="Image Description", value=first_image['alt'], inline=False)
+                    if 'fullsize' in first_image:
+                        embed.set_image(url=first_image['fullsize'])
+                
+                # Handle other media types (videos, links, etc.)
+                if 'media' in record['embed']:
+                    for media in record['embed']['media']:
+                        if 'type' == 'video':
+                            embed.add_field(
+                                name="Video",
+                                value=f"[Watch Video]({media.get('url', '')})",
+                                inline=False
+                            )
+
+            # Create the view button
+            view = discord.ui.View()
+            view.add_item(
+                discord.ui.Button(
+                    label="View on BlueSky",
+                    url=bluesky_url,
+                    style=discord.ButtonStyle.link,
+                    emoji="🔗"
+                )
             )
 
-            # Send the message
-            await channel.send(message)
+            # Send the message with embed and button
+            await channel.send(embed=embed, view=view)
             logging.info(f"Successfully sent BlueSky post to Discord channel {self.discord_channel_id}")
 
         except Exception as e:
