@@ -300,7 +300,7 @@ class BlueSkyMonitor(commands.Cog):
                 # Handle other media types (videos, links, etc.)
                 if 'media' in record['embed']:
                     for media in record['embed']['media']:
-                        if 'type' == 'video':
+                        if media.get('type') == 'video':
                             embed.add_field(
                                 name="Video",
                                 value=f"[Watch Video]({media.get('url', '')})",
